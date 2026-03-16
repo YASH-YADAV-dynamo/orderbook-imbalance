@@ -1,0 +1,146 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 52px;
+  border-bottom: 1px solid var(--grid);
+  flex-shrink: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brandName {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--fg);
+}
+
+.divider {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.metric {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.controlGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.label {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+}
+
+.select {
+  background: transparent;
+  border: 1px solid var(--grid-bright);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 3px 6px;
+  cursor: pointer;
+  outline: none;
+  letter-spacing: 0.05em;
+}
+
+.select:focus {
+  border-color: var(--muted);
+}
+
+.select option {
+  background: #111;
+  color: var(--fg);
+}
+
+.reconnectBtn {
+  background: transparent;
+  border: 1px solid var(--grid-bright);
+  color: var(--muted);
+  font-size: 16px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.reconnectBtn:hover {
+  color: var(--fg);
+  border-color: var(--muted);
+}
+
+.statusGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.statusLabel {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+}
+
+.clock {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  min-width: 72px;
+  text-align: right;
+}
+
+/* Status states */
+.live {
+  color: var(--bid) !important;
+}
+.statusDot.live {
+  background: var(--bid);
+  animation: blink 1.5s ease-in-out infinite;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+.connecting {
+  color: #f0a500 !important;
+}
+.statusDot.connecting {
+  background: #f0a500;
+  animation: blink 0.6s ease-in-out infinite;
+}
+
+.offline {
+  color: var(--ask) !important;
+}
+.statusDot.offline {
+  background: var(--ask);
+}

@@ -1,0 +1,82 @@
+.wrapper {
+  padding: 20px 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-bottom: 1px solid var(--grid);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sideLabel {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  font-weight: 700;
+}
+
+.sideLabel[data-side='bid'] { color: var(--bid); }
+.sideLabel[data-side='ask'] { color: var(--ask); }
+
+.symbol {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.value {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition: color 0.3s;
+}
+
+.value[data-side='bid'] { color: var(--bid); }
+.value[data-side='ask'] { color: var(--ask); }
+
+.track {
+  position: relative;
+  height: 10px;
+  background: #0d0d0d;
+  border: 1px solid var(--grid-bright);
+  overflow: hidden;
+}
+
+.center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: var(--grid-bright);
+  z-index: 2;
+}
+
+.fill {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  transition: width 0.12s ease-out;
+}
+
+.fillBid {
+  background: var(--bid);
+  opacity: 0.85;
+}
+
+.fillAsk {
+  background: var(--ask);
+  opacity: 0.85;
+}
+
+.scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+}

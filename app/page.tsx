@@ -1,66 +1,76 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+
+import { useState } from 'react';
+import dynamic from 'next/dynamic';
+import { AggLevel, DEFAULT_FORMULA_PARAMS, FormulaParams, FormulaType } from '@/types/orderbook';
+import { useOrderbook } from '@/hooks/useOrderbook';
+import Header from '@/components/Header';
+import FormulaSelector from '@/components/FormulaSelector';
+import ImbalanceGauge from '@/components/ImbalanceGauge';
+import StatsRow from '@/components/StatsRow';
+import DepthBars from '@/components/DepthBars';
+import styles from './page.module.css';
+
+const ImbalanceChart = dynamic(() => import('@/components/ImbalanceChart'), { ssr: false });
+const VolumeChart = dynamic(() => import('@/components/VolumeChart'), { ssr: false });
 
 export default function Home() {
+  const [symbol, setSymbol] = useState('SOL');
+  const [aggLevel, setAggLevel] = useState<AggLevel>(1);
+  const [formula, setFormula] = useState<FormulaType>('distanceWeighted');
+  const [params, setParams] = useState<FormulaParams>(DEFAULT_FORMULA_PARAMS);
+
+  const { state, history, reconnect } = useOrderbook(symbol, aggLevel, formula, params);
+
+  function handleParamsChange(patch: Partial<FormulaParams>) {
+    setParams(prev => ({ ...prev, ...patch }));
+  }
+
   return (
-    <div className={styles.page}>
+    <div className={styles.shell}>
+      <Header
+        symbol={symbol}
+        aggLevel={aggLevel}
+        connected={state.connected}
+        connecting={state.connecting}
+        error={state.error}
+        onSymbolChange={setSymbol}
+        onAggChange={setAggLevel}
+        onReconnect={reconnect}
+      />
+
       <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+        <FormulaSelector
+          formula={formula}
+          params={params}
+          onFormulaChange={setFormula}
+          onParamsChange={handleParamsChange}
         />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+        <ImbalanceGauge imbalance={state.imbalance} symbol={state.symbol || symbol} />
+
+        <StatsRow
+          totalBidVol={state.totalBidVol}
+          totalAskVol={state.totalAskVol}
+          spread={state.spread}
+          imbalance={state.imbalance}
+          numBidLevels={state.bids.length}
+          numAskLevels={state.asks.length}
+          timestamp={state.timestamp}
+        />
+
+        <DepthBars bids={state.bids} asks={state.asks} />
+
+        <ImbalanceChart history={history} />
+        <VolumeChart history={history} />
       </main>
+
+      {state.error && (
+        <div className={styles.errorBar}>
+          <span className={styles.errorDot} />
+          {state.error}
+        </div>
+      )}
     </div>
   );
 }
