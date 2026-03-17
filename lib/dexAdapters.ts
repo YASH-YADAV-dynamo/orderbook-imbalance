@@ -1,4 +1,5 @@
 import type { Level } from '@/types/orderbook';
+import { resolvePair, getPairsForAdapter } from '@/lib/pairs';
 
 // ── Result types ────────────────────────────────────────────────────────────
 
@@ -61,9 +62,9 @@ export const pacificaAdapter: DexAdapter = {
   name:             'Pacifica',
   route:            '/pacifica',
   color:            '#00ff88',
-  supportedSymbols: ['BTC', 'ETH', 'SOL', 'AVAX', 'MATIC'],
+  supportedSymbols: getPairsForAdapter('pacifica').map(p => p.id),
 
-  toWsSymbol: (s) => s,
+  toWsSymbol: (s) => resolvePair(s, 'pacifica'),
   getWsUrl:   () => 'wss://ws.pacifica.fi/ws',
 
   buildSubscribeMsg: (sym, agg = 1) => ({
@@ -85,18 +86,14 @@ export const pacificaAdapter: DexAdapter = {
 // ── 01 Exchange ───────────────────────────────────────────────────────────────
 // Delta feed — symbol is embedded in the WebSocket URL; no subscribe message.
 
-const ZO_MAP: Record<string, string> = {
-  BTC: 'BTCUSD', ETH: 'ETHUSD', SOL: 'SOLUSD',
-};
-
 export const zoAdapter: DexAdapter = {
   id:               '01',
   name:             '01 Exchange',
   route:            '/01',
   color:            '#6366f1',
-  supportedSymbols: ['BTC', 'ETH', 'SOL'],
+  supportedSymbols: getPairsForAdapter('01').map(p => p.id),
 
-  toWsSymbol:        (s) => ZO_MAP[s] ?? '',
+  toWsSymbol:        (s) => resolvePair(s, '01'),
   getWsUrl:          (sym) => `wss://zo-mainnet.n1.xyz/ws/deltas@${sym}`,
   buildSubscribeMsg: null,
 
@@ -121,10 +118,6 @@ export const zoAdapter: DexAdapter = {
 // ── HotStuff ──────────────────────────────────────────────────────────────────
 // JSON-RPC subscribe + snapshot/delta feed.
 
-const HOTSTUFF_MAP: Record<string, string> = {
-  ETH: 'ETH-PERP', SOL: 'SOL-PERP',
-};
-
 interface HsLevel { price: number; size: number }
 
 export const hotstuffAdapter: DexAdapter = {
@@ -132,10 +125,10 @@ export const hotstuffAdapter: DexAdapter = {
   name:             'HotStuff',
   route:            '/hotstuff',
   color:            '#f97316',
-  supportedSymbols: ['ETH', 'SOL'],
+  supportedSymbols: getPairsForAdapter('hotstuff').map(p => p.id),
 
-  toWsSymbol:        (s) => HOTSTUFF_MAP[s] ?? '',
-  getWsUrl:          () => 'wss://api.hotstuff.trade/ws',
+  toWsSymbol:        (s) => resolvePair(s, 'hotstuff'),
+  getWsUrl:          () => 'wss://api.hotstuff.trade/ws/',
 
   buildSubscribeMsg: (sym) => ({
     jsonrpc: '2.0', id: '1', method: 'subscribe',
@@ -186,10 +179,6 @@ export const hotstuffAdapter: DexAdapter = {
 // JSON-RPC snapshot feed (depth 15, 50 ms).
 // update_type 's' = full snapshot (in inserts), 'd' = incremental delta.
 
-const PARADEX_MAP: Record<string, string> = {
-  BTC: 'BTC-USD-PERP', ETH: 'ETH-USD-PERP', SOL: 'SOL-USD-PERP',
-};
-
 interface ParadexLevel { price: string; side: 'BUY' | 'SELL'; size: string }
 
 export const paradexAdapter: DexAdapter = {
@@ -197,9 +186,9 @@ export const paradexAdapter: DexAdapter = {
   name:             'Paradex',
   route:            '/paradex',
   color:            '#a855f7',
-  supportedSymbols: ['BTC', 'ETH', 'SOL'],
+  supportedSymbols: getPairsForAdapter('paradex').map(p => p.id),
 
-  toWsSymbol:       (s) => PARADEX_MAP[s] ?? '',
+  toWsSymbol:       (s) => resolvePair(s, 'paradex'),
   getWsUrl:         () => 'wss://ws.api.prod.paradex.trade/v1?',
 
   buildSubscribeMsg: (sym) => ({
@@ -249,6 +238,61 @@ export const paradexAdapter: DexAdapter = {
   },
 };
 
+// ── Hibachi ──────────────────────────────────────────────────────────────────
+// WebSocket subscribe feed. Snapshot first, then incremental Updates.
+// Levels: { price: string, quantity: string }
+
+interface HibachiLevel { price: string; quantity: string }
+
+export const hibachiAdapter: DexAdapter = {
+  id:               'hibachi',
+  name:             'Hibachi',
+  route:            '/hibachi',
+  color:            '#ef4444',
+  supportedSymbols: getPairsForAdapter('hibachi').map(p => p.id),
+
+  toWsSymbol:       (s) => resolvePair(s, 'hibachi'),
+  getWsUrl:         () => 'wss://data-api.hibachi.xyz/ws/market',
+
+  buildSubscribeMsg: (sym) => ({
+    method: 'subscribe',
+    parameters: {
+      subscriptions: [{ symbol: sym, topic: 'orderbook' }],
+    },
+  }),
+
+  processMessage: (raw, bidMap, askMap) => {
+    const msg = raw as {
+      topic?:       string;
+      messageType?: 'Snapshot' | 'Update';
+      data?: {
+        bid?: { levels?: HibachiLevel[] };
+        ask?: { levels?: HibachiLevel[] };
+      };
+    };
+
+    if (msg.topic !== 'orderbook' || !msg.data) return null;
+
+    if (msg.messageType === 'Snapshot') {
+      bidMap.clear();
+      askMap.clear();
+    }
+
+    const applyLevels = (levels: HibachiLevel[] | undefined, map: Map<string, number>) => {
+      if (!levels) return;
+      levels.forEach(({ price, quantity }) => {
+        const q = parseFloat(quantity);
+        q === 0 ? map.delete(price) : map.set(price, q);
+      });
+    };
+
+    applyLevels(msg.data.bid?.levels, bidMap);
+    applyLevels(msg.data.ask?.levels, askMap);
+
+    return { mode: 'map' };
+  },
+};
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 
 export const ADAPTERS = {
@@ -256,6 +300,7 @@ export const ADAPTERS = {
   '01':     zoAdapter,
   hotstuff: hotstuffAdapter,
   paradex:  paradexAdapter,
+  hibachi:  hibachiAdapter,
 } as const;
 
 export type AdapterId = keyof typeof ADAPTERS;

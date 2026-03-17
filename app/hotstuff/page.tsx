@@ -5,13 +5,16 @@ import { DEFAULT_FORMULA_PARAMS, FormulaParams, FormulaType } from '@/types/orde
 import { useDexOrderbook } from '@/hooks/useDexOrderbook';
 import DashboardLayout from '@/components/DashboardLayout';
 import { ADAPTERS } from '@/lib/dexAdapters';
+import { getPairsForAdapter } from '@/lib/pairs';
 import { useAppStore } from '@/store/useAppStore';
+
+const PAIRS = getPairsForAdapter('hotstuff');
 
 export default function HotstuffDashboard() {
   const darkMode       = useAppStore(s => s.darkMode);
   const toggleDarkMode = useAppStore(s => s.toggleDarkMode);
 
-  const [symbol,  setSymbol]  = useState('ETH');
+  const [symbol,  setSymbol]  = useState('BTC/USD');
   const [formula, setFormula] = useState<FormulaType>('distanceWeighted');
   const [params,  setParams]  = useState<FormulaParams>(DEFAULT_FORMULA_PARAMS);
 
@@ -22,7 +25,7 @@ export default function HotstuffDashboard() {
   return (
     <DashboardLayout
       brandName="HOTSTUFF"
-      supportedSymbols={ADAPTERS.hotstuff.supportedSymbols}
+      supportedPairs={PAIRS}
       backHref="/"
       state={state} history={history} reconnect={reconnect}
       symbol={symbol} onSymbolChange={setSymbol}

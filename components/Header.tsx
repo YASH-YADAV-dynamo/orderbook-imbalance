@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AggLevel } from '@/types/orderbook';
+import { MarketPair } from '@/lib/pairs';
+import MarketSelector from '@/components/MarketSelector';
 import styles from './Header.module.css';
 
 const AGG_LEVELS: AggLevel[] = [1, 10, 100, 1000, 10000];
-const SYMBOLS = ['SOL', 'BTC', 'ETH', 'AVAX', 'MATIC'];
 
 interface HeaderProps {
   symbol: string;
@@ -19,10 +20,9 @@ interface HeaderProps {
   onAggChange: (a: AggLevel) => void;
   onReconnect: () => void;
   onToggleTheme: () => void;
-  // Optional overrides
   brandName?: string;
   brandMetric?: string;
-  symbols?: string[];
+  pairs?: MarketPair[];
   showAgg?: boolean;
   backHref?: string;
 }
@@ -32,7 +32,7 @@ export default function Header({
   darkMode, onSymbolChange, onAggChange, onReconnect, onToggleTheme,
   brandName = 'PACIFICA',
   brandMetric = 'ORDERBOOK IMBALANCE',
-  symbols = SYMBOLS,
+  pairs,
   showAgg = true,
   backHref,
 }: HeaderProps) {
@@ -63,16 +63,16 @@ export default function Header({
 
       <div className={styles.controls}>
         <div className={styles.controlGroup}>
-          <label className={styles.label}>SYMBOL</label>
-          <select
-            className={styles.select}
-            value={symbol}
-            onChange={e => onSymbolChange(e.target.value)}
-          >
-            {symbols.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          <label className={styles.label}>MARKET</label>
+          {pairs ? (
+            <MarketSelector
+              pairs={pairs}
+              selected={symbol}
+              onSelect={onSymbolChange}
+            />
+          ) : (
+            <span className={styles.select}>{symbol}</span>
+          )}
         </div>
 
         {showAgg && (

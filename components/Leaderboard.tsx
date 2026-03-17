@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSmoothedLeaderboard } from '@/hooks/useSmoothedLeaderboard';
 import styles from './Leaderboard.module.css';
 
 export interface LeaderboardEntry {
@@ -12,6 +13,7 @@ export interface LeaderboardEntry {
   color: string;
   symbol: string;
   imbalance: number;
+  emaImbalance: number;
   bidVol: number;
   askVol: number;
   spread: number;
@@ -20,7 +22,7 @@ export interface LeaderboardEntry {
   supported: boolean;
 }
 
-const ROW_H = 72; // px — must match CSS .dataRow height
+const ROW_H = 72;
 
 function fv(n: number): string {
   if (!n) return '—';
@@ -55,34 +57,15 @@ function ExchangeIcon({ id, name, color }: { id: string; name: string; color: st
 }
 
 export default function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
-  const visible = entries.filter(e => e.supported);
-  const [sortedIds, setSortedIds] = useState<string[]>(() => visible.map(e => e.id));
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    const sort = () =>
-      setSortedIds(
-        [...visible]
-          .sort((a, b) => {
-            if (a.connected !== b.connected) return a.connected ? -1 : 1;
-            return Math.abs(a.imbalance) - Math.abs(b.imbalance);
-          })
-          .map(e => e.id)
-      );
-
-    sort();
-    timerRef.current = setInterval(sort, 1500);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries]);
+  const visible  = entries.filter(e => e.supported);
+  const smoothed = useSmoothedLeaderboard(visible);
 
   if (visible.length === 0) {
-    return <div className={styles.empty}>No DEXes support the selected symbol.</div>;
+    return <div className={styles.empty}>No DEXes support the selected pair.</div>;
   }
 
   return (
     <div className={styles.table}>
-      {/* ── Header row ── */}
       <div className={`${styles.row} ${styles.headRow}`}>
         <div className={styles.col}>#</div>
         <div className={styles.col}>Exchange</div>
@@ -94,19 +77,16 @@ export default function Leaderboard({ entries }: { entries: LeaderboardEntry[] }
         <div className={styles.col} />
       </div>
 
-      {/* ── Animated data rows ── */}
       <div
         className={styles.body}
         style={{ height: `${visible.length * ROW_H}px` }}
       >
-        {visible.map(entry => {
-          const rank = sortedIds.indexOf(entry.id);
-          const r = rank === -1 ? visible.length - 1 : rank;
-          const isBid = entry.imbalance >= 0;
-          const absImb = Math.abs(entry.imbalance);
-          const dir = absImb > 0.05 ? (isBid ? 'Bid pressure' : 'Ask pressure') : 'Balanced';
-          const pct = entry.connected
-            ? `${entry.imbalance >= 0 ? '+' : ''}${(entry.imbalance * 100).toFixed(2)}%`
+        {smoothed.map(entry => {
+          const isBid  = entry.displayImbalance >= 0;
+          const absImb = Math.abs(entry.displayImbalance);
+          const dir    = absImb > 0.05 ? (isBid ? 'Bid pressure' : 'Ask pressure') : 'Balanced';
+          const pct    = entry.connected
+            ? `${entry.displayImbalance >= 0 ? '+' : ''}${(entry.displayImbalance * 100).toFixed(2)}%`
             : '—';
           const statusKey = entry.connected ? 'live' : entry.connecting ? 'wait' : 'off';
 
@@ -114,9 +94,9 @@ export default function Leaderboard({ entries }: { entries: LeaderboardEntry[] }
             <div
               key={entry.id}
               className={styles.dataRow}
-              style={{ transform: `translateY(${r * ROW_H}px)` }}
+              style={{ transform: `translateY(${entry.rank * ROW_H}px)` }}
             >
-              <div className={`${styles.col} ${styles.rankCol}`}>{r + 1}</div>
+              <div className={`${styles.col} ${styles.rankCol}`}>{entry.rank + 1}</div>
 
               <div className={`${styles.col} ${styles.dexCol}`}>
                 <ExchangeIcon id={entry.id} name={entry.name} color={entry.color} />
@@ -137,11 +117,11 @@ export default function Leaderboard({ entries }: { entries: LeaderboardEntry[] }
               </div>
 
               <div className={`${styles.col} ${styles.numCol} ${styles.volCol}`}>
-                {entry.connected ? fv(entry.bidVol) : '—'}
+                {entry.connected ? fv(entry.displayBidVol) : '—'}
               </div>
 
               <div className={`${styles.col} ${styles.numCol} ${styles.volAskCol}`}>
-                {entry.connected ? fv(entry.askVol) : '—'}
+                {entry.connected ? fv(entry.displayAskVol) : '—'}
               </div>
 
               <div className={`${styles.col} ${styles.statusCol}`}>

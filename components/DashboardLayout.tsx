@@ -9,6 +9,7 @@ import {
   HistoryPoint,
   OrderbookState,
 } from '@/types/orderbook';
+import type { MarketPair } from '@/lib/pairs';
 import Header         from '@/components/Header';
 import FormulaSelector from '@/components/FormulaSelector';
 import ImbalanceGauge  from '@/components/ImbalanceGauge';
@@ -22,7 +23,7 @@ const VolumeChart    = dynamic(() => import('@/components/VolumeChart'),    { ss
 interface DashboardLayoutProps {
   brandName:        string;
   brandMetric?:     string;
-  supportedSymbols: string[];
+  supportedPairs:   MarketPair[];
   showAgg?:         boolean;
   backHref?:        string;
 
@@ -49,7 +50,7 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({
   brandName,
   brandMetric = 'ORDERBOOK IMBALANCE · MAINNET',
-  supportedSymbols,
+  supportedPairs,
   showAgg = false,
   backHref,
   state, history, reconnect,
@@ -77,7 +78,7 @@ export default function DashboardLayout({
         onToggleTheme={onToggleTheme}
         brandName={brandName}
         brandMetric={brandMetric}
-        symbols={supportedSymbols}
+        pairs={supportedPairs}
         showAgg={showAgg}
         backHref={backHref}
       />

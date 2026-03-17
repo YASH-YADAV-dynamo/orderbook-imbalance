@@ -18,7 +18,7 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       darkMode:           true,
-      leaderboardSymbol:  'BTC',
+      leaderboardSymbol:  'BTC/USD',
       leaderboardFormula: 'distanceWeighted',
       leaderboardParams:  DEFAULT_FORMULA_PARAMS,
 
@@ -29,6 +29,19 @@ export const useAppStore = create<AppState>()(
         leaderboardParams: { ...s.leaderboardParams, ...patch },
       })),
     }),
-    { name: 'obi-app' },
+    {
+      name: 'obi-app',
+      version: 1,
+      migrate: (persisted: unknown, version: number) => {
+        const state = persisted as Record<string, unknown>;
+        if (version === 0 && state.leaderboardSymbol) {
+          const sym = state.leaderboardSymbol as string;
+          if (!sym.includes('/')) {
+            state.leaderboardSymbol = `${sym}/USD`;
+          }
+        }
+        return state as AppState;
+      },
+    },
   ),
 );

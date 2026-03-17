@@ -13,9 +13,11 @@ import {
 import { computeImbalance } from '@/lib/formulas';
 import type { DexAdapter } from '@/lib/dexAdapters';
 
-const HISTORY_DURATION_MS = 60_000;
-const RECONNECT_DELAY_MS  = 3_000;
-const MAX_RETRIES         = 5;
+const HISTORY_DURATION_MS  = 60_000;
+const RECONNECT_DELAY_MS   = 3_000;
+const MAX_RETRIES          = 5;
+const HISTORY_SAMPLE_MS    = 200;   // max 5 history points/sec
+const EMA_HALFLIFE_MS      = 1000;  // ~1 s smoothing for fair comparison
 
 function mapToLevels(map: Map<string, number>, descending: boolean): Level[] {
   return [...map.entries()]
@@ -28,7 +30,8 @@ function mapToLevels(map: Map<string, number>, descending: boolean): Level[] {
 
 const defaultState = (symbol: string): OrderbookState => ({
   bids: [], asks: [], symbol,
-  timestamp: 0, imbalance: 0, totalBidVol: 0, totalAskVol: 0, spread: 0,
+  timestamp: 0, imbalance: 0, emaImbalance: 0,
+  totalBidVol: 0, totalAskVol: 0, spread: 0,
   connected: false, connecting: false, error: null,
 });
 
@@ -61,6 +64,13 @@ export function useDexOrderbook(
   const prevBidsRef   = useRef<Level[]>([]);
   const prevAsksRef   = useRef<Level[]>([]);
 
+  // RAF coalescing + EMA
+  const latestRef      = useRef<OrderbookState | null>(null);
+  const rafIdRef       = useRef(0);
+  const lastHistoryT   = useRef(0);
+  const emaRef         = useRef(0);
+  const lastEmaTRef    = useRef(0);
+
   // Stable refs — formula/params/aggLevel are read at message time without triggering reconnect
   const adapterRef  = useRef(adapter);
   const symbolRef   = useRef(displaySymbol);
@@ -76,11 +86,15 @@ export function useDexOrderbook(
   const disconnect = useCallback(() => {
     if (pingRef.current)       clearInterval(pingRef.current);
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    if (rafIdRef.current)      { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = 0; }
     if (wsRef.current) {
       wsRef.current.onclose = null;
       wsRef.current.close();
       wsRef.current = null;
     }
+    latestRef.current = null;
+    emaRef.current    = 0;
+    lastEmaTRef.current = 0;
   }, []);
 
   // connectRef keeps onclose always calling the latest connect (avoids stale closure)
@@ -155,18 +169,38 @@ export function useDexOrderbook(
       const spread      = bestBid && bestAsk ? Math.max(0, bestAsk - bestBid) : 0;
       const now         = Date.now();
 
-      setState({
-        bids, asks, symbol: sym, timestamp: now,
-        imbalance, totalBidVol, totalAskVol, spread,
-        connected: true, connecting: false, error: null,
-      });
+      // Time-corrected EMA: same effective window regardless of message rate
+      const dt    = lastEmaTRef.current ? now - lastEmaTRef.current : EMA_HALFLIFE_MS;
+      const alpha = 1 - Math.exp(-dt / EMA_HALFLIFE_MS);
+      emaRef.current    = alpha * imbalance + (1 - alpha) * emaRef.current;
+      lastEmaTRef.current = now;
 
-      setHistory(prev => {
-        const cutoff = now - HISTORY_DURATION_MS;
-        const next = prev.filter(p => p.t >= cutoff);
-        next.push({ t: now, imbalance, bidVol: totalBidVol, askVol: totalAskVol });
-        return next;
-      });
+      latestRef.current = {
+        bids, asks, symbol: sym, timestamp: now,
+        imbalance, emaImbalance: emaRef.current,
+        totalBidVol, totalAskVol, spread,
+        connected: true, connecting: false, error: null,
+      };
+
+      // Coalesce into a single render per animation frame
+      if (!rafIdRef.current) {
+        rafIdRef.current = requestAnimationFrame(() => {
+          rafIdRef.current = 0;
+          const snap = latestRef.current;
+          if (!snap) return;
+          setState(snap);
+
+          const t = Date.now();
+          if (t - lastHistoryT.current >= HISTORY_SAMPLE_MS) {
+            lastHistoryT.current = t;
+            setHistory(prev => {
+              const next = prev.filter(p => p.t >= t - HISTORY_DURATION_MS);
+              next.push({ t, imbalance: snap.imbalance, bidVol: snap.totalBidVol, askVol: snap.totalAskVol });
+              return next;
+            });
+          }
+        });
+      }
     };
 
     ws.onerror = () => {

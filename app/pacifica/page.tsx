@@ -5,13 +5,16 @@ import { AggLevel, DEFAULT_FORMULA_PARAMS, FormulaParams, FormulaType } from '@/
 import { useDexOrderbook } from '@/hooks/useDexOrderbook';
 import DashboardLayout from '@/components/DashboardLayout';
 import { ADAPTERS } from '@/lib/dexAdapters';
+import { getPairsForAdapter } from '@/lib/pairs';
 import { useAppStore } from '@/store/useAppStore';
+
+const PAIRS = getPairsForAdapter('pacifica');
 
 export default function PacificaDashboard() {
   const darkMode       = useAppStore(s => s.darkMode);
   const toggleDarkMode = useAppStore(s => s.toggleDarkMode);
 
-  const [symbol,   setSymbol]   = useState('SOL');
+  const [symbol,   setSymbol]   = useState('SOL/USD');
   const [aggLevel, setAggLevel] = useState<AggLevel>(1);
   const [formula,  setFormula]  = useState<FormulaType>('distanceWeighted');
   const [params,   setParams]   = useState<FormulaParams>(DEFAULT_FORMULA_PARAMS);
@@ -23,7 +26,7 @@ export default function PacificaDashboard() {
   return (
     <DashboardLayout
       brandName="PACIFICA"
-      supportedSymbols={ADAPTERS.pacifica.supportedSymbols}
+      supportedPairs={PAIRS}
       showAgg
       backHref="/"
       state={state} history={history} reconnect={reconnect}

@@ -22,6 +22,7 @@ export interface OrderbookState {
   symbol: string;
   timestamp: number;
   imbalance: number;        // -1 to +1
+  emaImbalance: number;     // time-smoothed EMA for fair cross-exchange comparison
   totalBidVol: number;
   totalAskVol: number;
   spread: number;

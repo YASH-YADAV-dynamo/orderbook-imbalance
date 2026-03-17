@@ -137,6 +137,41 @@
   font-size: 11px;
   color: var(--muted);
   letter-spacing: 0.01em;
+  position: relative;
+  cursor: default;
+}
+
+.infoIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  border-radius: 50%;
+  border: 1px solid var(--grid);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  vertical-align: middle;
+  cursor: help;
+}
+
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 300px;
+  padding: 10px 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--grid);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg);
+  z-index: 50;
+  pointer-events: none;
 }
 
 .widgetLive {

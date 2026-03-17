@@ -1,21 +1,23 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FORMULA_META, FormulaType } from '@/types/orderbook';
 import { useDexOrderbook } from '@/hooks/useDexOrderbook';
 import { useAppStore } from '@/store/useAppStore';
 import { ADAPTERS } from '@/lib/dexAdapters';
+import { getAllPairs } from '@/lib/pairs';
 import { LeaderboardEntry } from '@/components/Leaderboard';
 import dynamic from 'next/dynamic';
 import styles from './page.module.css';
 
-const Leaderboard = dynamic(() => import('@/components/Leaderboard'), { ssr: false });
+const Leaderboard    = dynamic(() => import('@/components/Leaderboard'),    { ssr: false });
+const MarketSelector = dynamic(() => import('@/components/MarketSelector'), { ssr: false });
 
 const FORMULA_NAMES: FormulaType[] = [
   'distanceWeighted', 'nearMid', 'ofi', 'microprice', 'powerLaw',
 ];
 
-const SHARED_SYMBOLS = ['BTC', 'ETH', 'SOL', 'AVAX', 'MATIC'];
+const ALL_PAIRS = getAllPairs();
 
 const SIGNIFICANCE_ITEMS = [
   { title: 'Price prediction signal',  body: 'Short-term price direction shows strong empirical correlation with orderbook imbalance across liquid markets.' },
@@ -24,53 +26,66 @@ const SIGNIFICANCE_ITEMS = [
   { title: 'Cross-DEX arbitrage',      body: 'Divergent imbalances across venues signal mispricing opportunities before they close.' },
 ];
 
+const RANKING_TOOLTIP =
+  'Ranked by strongest sustained directional pressure. ' +
+  'Uses a time-smoothed EMA (exponential moving average) with a ~1 s half-life ' +
+  'so exchanges with fast and slow feeds are compared fairly.';
+
 export default function LandingPage() {
-  const darkMode      = useAppStore(s => s.darkMode);
+  const darkMode       = useAppStore(s => s.darkMode);
   const toggleDarkMode = useAppStore(s => s.toggleDarkMode);
-  const symbol        = useAppStore(s => s.leaderboardSymbol);
-  const formula       = useAppStore(s => s.leaderboardFormula);
-  const params        = useAppStore(s => s.leaderboardParams);
-  const setSymbol     = useAppStore(s => s.setLeaderboardSymbol);
-  const setFormula    = useAppStore(s => s.setLeaderboardFormula);
-  const setParams     = useAppStore(s => s.setLeaderboardParams);
+  const symbol         = useAppStore(s => s.leaderboardSymbol);
+  const formula        = useAppStore(s => s.leaderboardFormula);
+  const params         = useAppStore(s => s.leaderboardParams);
+  const setSymbol      = useAppStore(s => s.setLeaderboardSymbol);
+  const setFormula     = useAppStore(s => s.setLeaderboardFormula);
+  const setParams      = useAppStore(s => s.setLeaderboardParams);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
-  // One hook per adapter — hooks must be called unconditionally at the top level
+  const [showTooltip, setShowTooltip] = useState(false);
+
   const pacifica = useDexOrderbook(ADAPTERS.pacifica, symbol, formula, params);
   const zo       = useDexOrderbook(ADAPTERS['01'],    symbol, formula, params);
   const hotstuff = useDexOrderbook(ADAPTERS.hotstuff, symbol, formula, params);
   const paradex  = useDexOrderbook(ADAPTERS.paradex,  symbol, formula, params);
+  const hibachi  = useDexOrderbook(ADAPTERS.hibachi,  symbol, formula, params);
 
-  // Map each adapter id to its hook result for clean entry building
   const hookByAdapter = {
-    pacifica, '01': zo, hotstuff, paradex,
+    pacifica, '01': zo, hotstuff, paradex, hibachi,
   } as const;
 
-  const entries: LeaderboardEntry[] = (
-    Object.entries(ADAPTERS) as [keyof typeof ADAPTERS, (typeof ADAPTERS)[keyof typeof ADAPTERS]][]
-  ).map(([id, adapter]) => {
-    const { state } = hookByAdapter[id];
-    const wsSymbol  = adapter.toWsSymbol(symbol);
-    return {
-      id:         adapter.id,
-      name:       adapter.name,
-      route:      adapter.route,
-      color:      adapter.color,
+  const entries: LeaderboardEntry[] = useMemo(() =>
+    (Object.entries(ADAPTERS) as [keyof typeof ADAPTERS, (typeof ADAPTERS)[keyof typeof ADAPTERS]][])
+      .map(([id, adapter]) => {
+        const { state } = hookByAdapter[id];
+        const wsSymbol  = adapter.toWsSymbol(symbol);
+        return {
+          id:            adapter.id,
+          name:          adapter.name,
+          route:         adapter.route,
+          color:         adapter.color,
+          symbol,
+          imbalance:     state.imbalance,
+          emaImbalance:  state.emaImbalance,
+          bidVol:        state.totalBidVol,
+          askVol:        state.totalAskVol,
+          spread:        state.bids[0] && state.asks[0]
+                           ? parseFloat(state.asks[0].p) - parseFloat(state.bids[0].p)
+                           : 0,
+          connected:     state.connected,
+          connecting:    state.connecting,
+          supported:     !!wsSymbol,
+        };
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
       symbol,
-      imbalance:  state.imbalance,
-      bidVol:     state.totalBidVol,
-      askVol:     state.totalAskVol,
-      spread:     state.bids[0] && state.asks[0]
-                    ? parseFloat(state.asks[0].p) - parseFloat(state.bids[0].p)
-                    : 0,
-      connected:  state.connected,
-      connecting: state.connecting,
-      supported:  !!wsSymbol,
-    };
-  });
+      pacifica.state, zo.state, hotstuff.state, paradex.state, hibachi.state,
+    ],
+  );
 
   const meta      = FORMULA_META[formula];
   const hasLambda = formula === 'distanceWeighted';
@@ -81,7 +96,6 @@ export default function LandingPage() {
   return (
     <div className={styles.page}>
 
-      {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <nav className={styles.nav}>
         <div className={styles.navBrand}>
           <span className={styles.navDot} />
@@ -92,7 +106,6 @@ export default function LandingPage() {
         </button>
       </nav>
 
-      {/* ── Page header ──────────────────────────────────────────────────── */}
       <div className={styles.pageHeader}>
         <div className={styles.pageHeaderInner}>
           <h1 className={styles.pageTitle}>Orderbook Imbalance</h1>
@@ -102,14 +115,23 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* ── Comparison Widget ────────────────────────────────────────────── */}
       <section className={styles.widgetSection}>
         <div className={styles.widgetOuter}>
 
           <div className={styles.widgetTitleBar}>
             <div className={styles.widgetTitleLeft}>
               <span className={styles.widgetName}>Live Comparison</span>
-              <span className={styles.widgetHint}>ranked by smallest absolute imbalance · refreshes every 1.5 s</span>
+              <span
+                className={styles.widgetHint}
+                onMouseEnter={() => setShowTooltip(true)}
+                onMouseLeave={() => setShowTooltip(false)}
+              >
+                ranked by strongest directional pressure
+                <span className={styles.infoIcon}>?</span>
+                {showTooltip && (
+                  <span className={styles.tooltip}>{RANKING_TOOLTIP}</span>
+                )}
+              </span>
             </div>
             <div className={styles.widgetLive} data-live={anyLive}>
               <span className={styles.liveDot} />
@@ -117,21 +139,15 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Controls row */}
           <div className={styles.widgetControls}>
             <div className={styles.ctrlGroup}>
-              <span className={styles.ctrlLabel}>Symbol</span>
-              <div className={styles.symbolPills}>
-                {SHARED_SYMBOLS.map(s => (
-                  <button
-                    key={s}
-                    className={`${styles.symbolPill} ${symbol === s ? styles.symbolPillActive : ''}`}
-                    onClick={() => setSymbol(s)}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+              <span className={styles.ctrlLabel}>Market</span>
+              <MarketSelector
+                pairs={ALL_PAIRS}
+                selected={symbol}
+                onSelect={setSymbol}
+                showDexBadges
+              />
             </div>
 
             <span className={styles.ctrlDivider} />
@@ -199,7 +215,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Blog ─────────────────────────────────────────────────────────── */}
       <section className={styles.blog}>
         <div className={styles.blogInner}>
           <div className={styles.blogLeft}>
@@ -241,7 +256,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Footer ───────────────────────────────────────────────────────── */}
       <footer className={styles.footer}>
         <span className={styles.footerBrand}>Orderbook Imbalance Monitor</span>
         <span className={styles.footerNote}>Mainnet only · Real-time WebSocket feeds</span>
