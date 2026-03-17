@@ -1,38 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { DEFAULT_FORMULA_PARAMS, FormulaParams, FormulaType, FORMULA_META } from '@/types/orderbook';
-import { useOrderbook } from '@/hooks/useOrderbook';
-import { useZoOrderbook } from '@/hooks/useZoOrderbook';
-import { useHotstuffOrderbook } from '@/hooks/useHotstuffOrderbook';
+import { useEffect } from 'react';
+import { FORMULA_META, FormulaType } from '@/types/orderbook';
+import { useDexOrderbook } from '@/hooks/useDexOrderbook';
+import { useAppStore } from '@/store/useAppStore';
+import { ADAPTERS } from '@/lib/dexAdapters';
 import { LeaderboardEntry } from '@/components/Leaderboard';
 import dynamic from 'next/dynamic';
 import styles from './page.module.css';
 
 const Leaderboard = dynamic(() => import('@/components/Leaderboard'), { ssr: false });
 
-// ── DEX registry ────────────────────────────────────────────────────────
-const DEXES = [
-  { id: 'pacifica', name: 'Pacifica',    route: '/pacifica', color: '#00ff88', symbols: ['BTC', 'ETH', 'SOL', 'AVAX', 'MATIC'] },
-  { id: '01',       name: '01 Exchange', route: '/01',       color: '#6366f1', symbols: ['BTC', 'ETH', 'SOL'] },
-  { id: 'hotstuff', name: 'HotStuff',    route: '/hotstuff', color: '#f97316', symbols: ['ETH', 'SOL'] },
-];
-
-const SHARED_SYMBOLS = ['BTC', 'ETH', 'SOL', 'AVAX', 'MATIC'];
-
-const ZO_SYMBOL_MAP: Record<string, string> = {
-  BTC: 'BTCUSD', ETH: 'ETHUSD', SOL: 'SOLUSD',
-};
-
-// HotStuff live instruments: ETH-PERP, SOL-PERP (BTC-PERP not listed yet)
-const HOTSTUFF_SYMBOL_MAP: Record<string, string> = {
-  ETH: 'ETH-PERP',
-  SOL: 'SOL-PERP',
-};
-
 const FORMULA_NAMES: FormulaType[] = [
   'distanceWeighted', 'nearMid', 'ofi', 'microprice', 'powerLaw',
 ];
+
+const SHARED_SYMBOLS = ['BTC', 'ETH', 'SOL', 'AVAX', 'MATIC'];
 
 const SIGNIFICANCE_ITEMS = [
   { title: 'Price prediction signal',  body: 'Short-term price direction shows strong empirical correlation with orderbook imbalance across liquid markets.' },
@@ -42,68 +25,58 @@ const SIGNIFICANCE_ITEMS = [
 ];
 
 export default function LandingPage() {
-  const [darkMode, setDarkMode] = useState(true);
-  const [symbol, setSymbol]   = useState('BTC');
-  const [formula, setFormula] = useState<FormulaType>('distanceWeighted');
-  const [params, setParams]   = useState<FormulaParams>(DEFAULT_FORMULA_PARAMS);
+  const darkMode      = useAppStore(s => s.darkMode);
+  const toggleDarkMode = useAppStore(s => s.toggleDarkMode);
+  const symbol        = useAppStore(s => s.leaderboardSymbol);
+  const formula       = useAppStore(s => s.leaderboardFormula);
+  const params        = useAppStore(s => s.leaderboardParams);
+  const setSymbol     = useAppStore(s => s.setLeaderboardSymbol);
+  const setFormula    = useAppStore(s => s.setLeaderboardFormula);
+  const setParams     = useAppStore(s => s.setLeaderboardParams);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
-  const pacifica      = useOrderbook(symbol, 1, formula, params);
-  const zoSymbol      = ZO_SYMBOL_MAP[symbol] ?? '';
-  const zo            = useZoOrderbook(zoSymbol, formula, params);
-  const hotstuffSym   = HOTSTUFF_SYMBOL_MAP[symbol] ?? '';
-  const hotstuff      = useHotstuffOrderbook(hotstuffSym, formula, params);
+  // One hook per adapter — hooks must be called unconditionally at the top level
+  const pacifica = useDexOrderbook(ADAPTERS.pacifica, symbol, formula, params);
+  const zo       = useDexOrderbook(ADAPTERS['01'],    symbol, formula, params);
+  const hotstuff = useDexOrderbook(ADAPTERS.hotstuff, symbol, formula, params);
+  const paradex  = useDexOrderbook(ADAPTERS.paradex,  symbol, formula, params);
 
-  const calcSpread = (bids: typeof pacifica.state.bids, asks: typeof pacifica.state.asks) => {
-    if (!bids.length || !asks.length) return 0;
-    return parseFloat(asks[0].p) - parseFloat(bids[0].p);
-  };
+  // Map each adapter id to its hook result for clean entry building
+  const hookByAdapter = {
+    pacifica, '01': zo, hotstuff, paradex,
+  } as const;
 
-  const entries: LeaderboardEntry[] = [
-    {
-      id: 'pacifica', name: 'Pacifica', route: '/pacifica', color: '#00ff88',
+  const entries: LeaderboardEntry[] = (
+    Object.entries(ADAPTERS) as [keyof typeof ADAPTERS, (typeof ADAPTERS)[keyof typeof ADAPTERS]][]
+  ).map(([id, adapter]) => {
+    const { state } = hookByAdapter[id];
+    const wsSymbol  = adapter.toWsSymbol(symbol);
+    return {
+      id:         adapter.id,
+      name:       adapter.name,
+      route:      adapter.route,
+      color:      adapter.color,
       symbol,
-      imbalance: pacifica.state.imbalance,
-      bidVol:    pacifica.state.totalBidVol,
-      askVol:    pacifica.state.totalAskVol,
-      spread:    calcSpread(pacifica.state.bids, pacifica.state.asks),
-      connected:  pacifica.state.connected,
-      connecting: pacifica.state.connecting,
-      supported:  DEXES[0].symbols.includes(symbol),
-    },
-    {
-      id: '01', name: '01 Exchange', route: '/01', color: '#6366f1',
-      symbol,
-      imbalance: zo.state.imbalance,
-      bidVol:    zo.state.totalBidVol,
-      askVol:    zo.state.totalAskVol,
-      spread:    calcSpread(zo.state.bids, zo.state.asks),
-      connected:  zo.state.connected,
-      connecting: zo.state.connecting,
-      supported:  !!ZO_SYMBOL_MAP[symbol],
-    },
-    {
-      id: 'hotstuff', name: 'HotStuff', route: '/hotstuff', color: '#f97316',
-      symbol,
-      imbalance: hotstuff.state.imbalance,
-      bidVol:    hotstuff.state.totalBidVol,
-      askVol:    hotstuff.state.totalAskVol,
-      spread:    calcSpread(hotstuff.state.bids, hotstuff.state.asks),
-      connected:  hotstuff.state.connected,
-      connecting: hotstuff.state.connecting,
-      supported:  !!HOTSTUFF_SYMBOL_MAP[symbol],
-    },
-  ];
+      imbalance:  state.imbalance,
+      bidVol:     state.totalBidVol,
+      askVol:     state.totalAskVol,
+      spread:     state.bids[0] && state.asks[0]
+                    ? parseFloat(state.asks[0].p) - parseFloat(state.bids[0].p)
+                    : 0,
+      connected:  state.connected,
+      connecting: state.connecting,
+      supported:  !!wsSymbol,
+    };
+  });
 
   const meta      = FORMULA_META[formula];
   const hasLambda = formula === 'distanceWeighted';
   const hasXPct   = formula === 'nearMid';
   const hasAlpha  = formula === 'powerLaw';
-
-  const anyLive = entries.some(e => e.connected);
+  const anyLive   = entries.some(e => e.connected);
 
   return (
     <div className={styles.page}>
@@ -114,7 +87,7 @@ export default function LandingPage() {
           <span className={styles.navDot} />
           <span className={styles.navTitle}>Orderbook Imbalance</span>
         </div>
-        <button className={styles.themeBtn} onClick={() => setDarkMode(d => !d)}>
+        <button className={styles.themeBtn} onClick={toggleDarkMode}>
           {darkMode ? '☀ Light' : '◑ Dark'}
         </button>
       </nav>
@@ -133,7 +106,6 @@ export default function LandingPage() {
       <section className={styles.widgetSection}>
         <div className={styles.widgetOuter}>
 
-          {/* Widget title bar */}
           <div className={styles.widgetTitleBar}>
             <div className={styles.widgetTitleLeft}>
               <span className={styles.widgetName}>Live Comparison</span>
@@ -145,7 +117,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Controls row — feels like a Notion filter/sort bar */}
+          {/* Controls row */}
           <div className={styles.widgetControls}>
             <div className={styles.ctrlGroup}>
               <span className={styles.ctrlLabel}>Symbol</span>
@@ -183,7 +155,7 @@ export default function LandingPage() {
                 <input
                   type="range" min={0.1} max={100} step={0.1}
                   value={params.lambda}
-                  onChange={e => setParams(p => ({ ...p, lambda: parseFloat(e.target.value) }))}
+                  onChange={e => setParams({ lambda: parseFloat(e.target.value) })}
                   className={styles.ctrlSlider}
                 />
                 <span className={styles.ctrlSliderVal}>{params.lambda.toFixed(1)}</span>
@@ -195,7 +167,7 @@ export default function LandingPage() {
                 <input
                   type="range" min={0.1} max={5} step={0.1}
                   value={params.xPct}
-                  onChange={e => setParams(p => ({ ...p, xPct: parseFloat(e.target.value) }))}
+                  onChange={e => setParams({ xPct: parseFloat(e.target.value) })}
                   className={styles.ctrlSlider}
                 />
                 <span className={styles.ctrlSliderVal}>{params.xPct.toFixed(1)}%</span>
@@ -207,7 +179,7 @@ export default function LandingPage() {
                 <input
                   type="range" min={0.5} max={3} step={0.1}
                   value={params.alpha}
-                  onChange={e => setParams(p => ({ ...p, alpha: parseFloat(e.target.value) }))}
+                  onChange={e => setParams({ alpha: parseFloat(e.target.value) })}
                   className={styles.ctrlSlider}
                 />
                 <span className={styles.ctrlSliderVal}>{params.alpha.toFixed(1)}</span>
@@ -222,7 +194,6 @@ export default function LandingPage() {
             </span>
           </div>
 
-          {/* The Notion-style table */}
           <Leaderboard entries={entries} />
 
         </div>

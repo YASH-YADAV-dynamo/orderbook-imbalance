@@ -7,22 +7,22 @@ import DashboardLayout from '@/components/DashboardLayout';
 import { ADAPTERS } from '@/lib/dexAdapters';
 import { useAppStore } from '@/store/useAppStore';
 
-export default function HotstuffDashboard() {
+export default function ParadexDashboard() {
   const darkMode       = useAppStore(s => s.darkMode);
   const toggleDarkMode = useAppStore(s => s.toggleDarkMode);
 
-  const [symbol,  setSymbol]  = useState('ETH');
+  const [symbol,  setSymbol]  = useState('BTC');
   const [formula, setFormula] = useState<FormulaType>('distanceWeighted');
   const [params,  setParams]  = useState<FormulaParams>(DEFAULT_FORMULA_PARAMS);
 
   const { state, history, reconnect } = useDexOrderbook(
-    ADAPTERS.hotstuff, symbol, formula, params,
+    ADAPTERS.paradex, symbol, formula, params,
   );
 
   return (
     <DashboardLayout
-      brandName="HOTSTUFF"
-      supportedSymbols={ADAPTERS.hotstuff.supportedSymbols}
+      brandName="PARADEX"
+      supportedSymbols={ADAPTERS.paradex.supportedSymbols}
       backHref="/"
       state={state} history={history} reconnect={reconnect}
       symbol={symbol} onSymbolChange={setSymbol}
