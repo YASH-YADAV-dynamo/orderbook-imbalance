@@ -73,12 +73,18 @@
   padding: 36px 32px 32px;
   max-width: 1280px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    'title integrate'
+    'desc  integrate';
+  gap: 8px 16px;
+  align-items: start;
 }
 
 .pageTitle {
+  grid-area: title;
   font-size: clamp(26px, 3.5vw, 40px);
   font-weight: 600;
   letter-spacing: -0.025em;
@@ -87,11 +93,28 @@
 }
 
 .pageDesc {
+  grid-area: desc;
   font-size: 13px;
   line-height: 1.6;
   color: var(--fg-muted);
   max-width: 560px;
   letter-spacing: 0.01em;
+}
+
+.integrateWrap {
+  grid-area: integrate;
+  align-self: center;
+}
+
+@media (max-width: 640px) {
+  .pageHeaderInner {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      'title'
+      'desc'
+      'integrate';
+  }
 }
 
 /* ── Comparison Widget ───────────────────────────────────────────────── */
@@ -126,6 +149,13 @@
   flex-wrap: wrap;
 }
 
+.widgetTitleRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
 .widgetName {
   font-size: 13px;
   font-weight: 600;
@@ -137,6 +167,41 @@
   font-size: 11px;
   color: var(--muted);
   letter-spacing: 0.01em;
+  position: relative;
+  cursor: default;
+}
+
+.infoIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  border-radius: 50%;
+  border: 1px solid var(--grid);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  vertical-align: middle;
+  cursor: help;
+}
+
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 300px;
+  padding: 10px 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--grid);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg);
+  z-index: 50;
+  pointer-events: none;
 }
 
 .widgetLive {
@@ -440,6 +505,29 @@
   font-size: 11px;
   color: var(--muted);
   letter-spacing: 0.02em;
+}
+
+.footerLove {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: #00fff7;
+  text-shadow: 0 0 8px rgba(0, 255, 247, 0.6);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.2s, text-shadow 0.2s;
+}
+
+.footerLove:hover {
+  opacity: 0.9;
+  text-shadow: 0 0 12px rgba(0, 255, 247, 0.8);
+}
+
+.footerX {
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* ════════════════════════════════════════════════════════

@@ -9,9 +9,9 @@ import { ADAPTERS } from '@/lib/dexAdapters';
 import { getPairsForAdapter } from '@/lib/pairs';
 import { useAppStore } from '@/store/useAppStore';
 
-const PAIRS = getPairsForAdapter('01');
+const PAIRS = getPairsForAdapter('paradex');
 
-export default function ZoDashboard() {
+export default function ParadexDashboard() {
   const darkMode       = useAppStore(s => s.darkMode);
   const toggleDarkMode = useAppStore(s => s.toggleDarkMode);
 
@@ -22,12 +22,12 @@ export default function ZoDashboard() {
   const refMid = useBinancePrice(symbol);
 
   const { state, history, reconnect } = useDexOrderbook(
-    ADAPTERS['01'], symbol, formula, params, undefined, refMid,
+    ADAPTERS.paradex, symbol, formula, params, undefined, refMid,
   );
 
   return (
     <DashboardLayout
-      brandName="01 EXCHANGE"
+      brandName="PARADEX"
       supportedPairs={PAIRS}
       backHref="/"
       state={state} history={history} reconnect={reconnect}

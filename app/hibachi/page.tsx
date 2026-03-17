@@ -9,25 +9,25 @@ import { ADAPTERS } from '@/lib/dexAdapters';
 import { getPairsForAdapter } from '@/lib/pairs';
 import { useAppStore } from '@/store/useAppStore';
 
-const PAIRS = getPairsForAdapter('01');
+const PAIRS = getPairsForAdapter('hibachi');
 
-export default function ZoDashboard() {
+export default function HibachiDashboard() {
   const darkMode       = useAppStore(s => s.darkMode);
   const toggleDarkMode = useAppStore(s => s.toggleDarkMode);
 
-  const [symbol,  setSymbol]  = useState('BTC/USD');
+  const [symbol,  setSymbol]  = useState('ETH/USD');
   const [formula, setFormula] = useState<FormulaType>('distanceWeighted');
   const [params,  setParams]  = useState<FormulaParams>(DEFAULT_FORMULA_PARAMS);
 
   const refMid = useBinancePrice(symbol);
 
   const { state, history, reconnect } = useDexOrderbook(
-    ADAPTERS['01'], symbol, formula, params, undefined, refMid,
+    ADAPTERS.hibachi, symbol, formula, params, undefined, refMid,
   );
 
   return (
     <DashboardLayout
-      brandName="01 EXCHANGE"
+      brandName="HIBACHI"
       supportedPairs={PAIRS}
       backHref="/"
       state={state} history={history} reconnect={reconnect}
