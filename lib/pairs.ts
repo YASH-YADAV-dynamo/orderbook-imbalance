@@ -41,6 +41,11 @@ const NATIVE_SYMBOLS: Record<string, Record<string, string>> = {
     'BTC/USD': 'BTC-USD', 'ETH/USD': 'ETH-USD', 'SOL/USD': 'SOL-USD',
     'AVAX/USD': 'AVAX-USD',
   },
+  aster: {
+    'BTC/USD': 'btcusdt', 'ETH/USD': 'ethusdt', 'SOL/USD': 'solusdt',
+    'AVAX/USD': 'avaxusdt', 'SUI/USD': 'suiusdt', 'XRP/USD': 'xrpusdt',
+    'BNB/USD': 'bnbusdt', 'HYPE/USD': 'hypeusdt',
+  },
 };
 
 export function resolvePair(pairId: string, adapterId: string): string {

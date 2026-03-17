@@ -57,9 +57,10 @@ export default function LandingPage() {
   const hibachi     = useDexOrderbook(ADAPTERS.hibachi,     symbol, formula, params, undefined, refMid);
   const hyperliquid = useDexOrderbook(ADAPTERS.hyperliquid, symbol, formula, params, undefined, refMid);
   const extended    = useDexOrderbook(ADAPTERS.extended,    symbol, formula, params, undefined, refMid);
+  const aster       = useDexOrderbook(ADAPTERS.aster,       symbol, formula, params, undefined, refMid);
 
   const hookByAdapter = {
-    pacifica, '01': zo, hotstuff, paradex, hibachi, hyperliquid, extended,
+    pacifica, '01': zo, hotstuff, paradex, hibachi, hyperliquid, extended, aster,
   } as const;
 
   const entries: LeaderboardEntry[] = useMemo(() =>
@@ -88,7 +89,7 @@ export default function LandingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       symbol,
-      pacifica.state, zo.state, hotstuff.state, paradex.state, hibachi.state, hyperliquid.state, extended.state,
+      pacifica.state, zo.state, hotstuff.state, paradex.state, hibachi.state, hyperliquid.state, extended.state, aster.state,
     ],
   );
 

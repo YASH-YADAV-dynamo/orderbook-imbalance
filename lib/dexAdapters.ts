@@ -385,6 +385,37 @@ export const extendedAdapter: DexAdapter = {
   },
 };
 
+// ── Aster ────────────────────────────────────────────────────────────────────
+// Binance-compatible partial depth stream. Symbol embedded in URL.
+// Levels are [price, quantity] tuples. Full snapshot each push.
+
+export const asterAdapter: DexAdapter = {
+  id:               'aster',
+  name:             'Aster',
+  route:            '/aster',
+  color:            '#f59e0b',
+  supportedSymbols: getPairsForAdapter('aster').map(p => p.id),
+
+  toWsSymbol:        (s) => resolvePair(s, 'aster'),
+  getWsUrl:          (sym) => `wss://fstream.asterdex.com/ws/${sym}@depth20@100ms`,
+  buildSubscribeMsg: null,
+
+  processMessage: (raw) => {
+    const msg = raw as {
+      e?: string;
+      b?: [string, string][];
+      a?: [string, string][];
+    };
+
+    if (msg.e !== 'depthUpdate' || !msg.b || !msg.a) return null;
+
+    const bids: Level[] = msg.b.map(([p, a]) => ({ p, a, n: 0 }));
+    const asks: Level[] = msg.a.map(([p, a]) => ({ p, a, n: 0 }));
+
+    return { mode: 'direct', bids, asks };
+  },
+};
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 
 export const ADAPTERS = {
@@ -395,6 +426,7 @@ export const ADAPTERS = {
   hibachi:      hibachiAdapter,
   hyperliquid:  hyperliquidAdapter,
   extended:     extendedAdapter,
+  aster:        asterAdapter,
 } as const;
 
 export type AdapterId = keyof typeof ADAPTERS;
