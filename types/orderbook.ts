@@ -16,6 +16,27 @@ export interface BookMessage {
   data: BookData;
 }
 
+export type Regime = 'stable' | 'trending' | 'volatile';
+
+export interface TradingSignal {
+  value: number;           // -1 to +1, final noise-reduced
+  confidence: number;      // 0–1, from regime
+  regime: Regime;
+  rawImbalance: number;
+  emaImbalance: number;
+  spikeFiltered: boolean;
+  uncertainty?: number;    // Kalman uncertainty
+}
+
+export interface NoiseReductionState {
+  history: number[];
+  smoothedHistory: number[];
+  lastValue: number;
+  ema: number;
+  kalmanState: { x: number; P: number } | null;
+  spikeCount: number;
+}
+
 export interface OrderbookState {
   bids: Level[];
   asks: Level[];
@@ -23,6 +44,7 @@ export interface OrderbookState {
   timestamp: number;
   imbalance: number;        // -1 to +1
   emaImbalance: number;     // time-smoothed EMA for fair cross-exchange comparison
+  tradingSignal?: TradingSignal;
   totalBidVol: number;
   totalAskVol: number;
   spread: number;

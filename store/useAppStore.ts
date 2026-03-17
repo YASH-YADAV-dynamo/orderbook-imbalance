@@ -40,7 +40,7 @@ export const useAppStore = create<AppState>()(
             state.leaderboardSymbol = `${sym}/USD`;
           }
         }
-        return state as AppState;
+        return state as unknown as AppState;
       },
     },
   ),

@@ -8,6 +8,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { ADAPTERS } from '@/lib/dexAdapters';
 import { getAllPairs } from '@/lib/pairs';
 import { LeaderboardEntry } from '@/components/Leaderboard';
+import IntegrateButton from '@/components/IntegrateButton';
 import dynamic from 'next/dynamic';
 import styles from './page.module.css';
 
@@ -118,6 +119,9 @@ export default function LandingPage() {
           <p className={styles.pageDesc}>
             Real-time bid/ask pressure across decentralised exchanges — mainnet WebSocket feeds.
           </p>
+          <div className={styles.integrateWrap}>
+            <IntegrateButton />
+          </div>
         </div>
       </div>
 
@@ -139,9 +143,11 @@ export default function LandingPage() {
                 )}
               </span>
             </div>
-            <div className={styles.widgetLive} data-live={anyLive}>
-              <span className={styles.liveDot} />
-              <span className={styles.liveText}>{anyLive ? 'Live' : 'Connecting'}</span>
+            <div className={styles.widgetTitleRight}>
+              <div className={styles.widgetLive} data-live={anyLive}>
+                <span className={styles.liveDot} />
+                <span className={styles.liveText}>{anyLive ? 'Live' : 'Connecting'}</span>
+              </div>
             </div>
           </div>
 
@@ -265,6 +271,15 @@ export default function LandingPage() {
       <footer className={styles.footer}>
         <span className={styles.footerBrand}>Orderbook Imbalance Monitor</span>
         <span className={styles.footerNote}>Mainnet only · Real-time WebSocket feeds</span>
+        <a
+          href="https://x.com/yashastro23"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.footerLove}
+        >
+          made with love by dynamo
+          <span className={styles.footerX} aria-label="X">𝕏</span>
+        </a>
       </footer>
     </div>
   );

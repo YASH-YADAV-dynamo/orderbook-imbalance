@@ -8,9 +8,11 @@ import {
   FormulaType,
   HistoryPoint,
   Level,
+  NoiseReductionState,
   OrderbookState,
 } from '@/types/orderbook';
 import { computeImbalance } from '@/lib/formulas';
+import { createNoiseState, computeTradingSignal } from '@/lib/noiseReduction';
 import type { DexAdapter } from '@/lib/dexAdapters';
 
 const HISTORY_DURATION_MS  = 60_000;
@@ -65,12 +67,14 @@ export function useDexOrderbook(
   const prevBidsRef   = useRef<Level[]>([]);
   const prevAsksRef   = useRef<Level[]>([]);
 
-  // RAF coalescing + EMA
-  const latestRef      = useRef<OrderbookState | null>(null);
-  const rafIdRef       = useRef(0);
-  const lastHistoryT   = useRef(0);
-  const emaRef         = useRef(0);
-  const lastEmaTRef    = useRef(0);
+  // RAF coalescing + EMA + noise reduction
+  const latestRef       = useRef<OrderbookState | null>(null);
+  const rafIdRef        = useRef(0);
+  const lastHistoryT    = useRef(0);
+  const emaRef          = useRef(0);
+  const lastEmaTRef     = useRef(0);
+  const noiseStateRef   = useRef<NoiseReductionState>(createNoiseState());
+  const lastNoiseTRef   = useRef(0);
 
   // Stable refs — formula/params/aggLevel are read at message time without triggering reconnect
   const adapterRef  = useRef(adapter);
@@ -98,6 +102,8 @@ export function useDexOrderbook(
     latestRef.current = null;
     emaRef.current    = 0;
     lastEmaTRef.current = 0;
+    noiseStateRef.current = createNoiseState();
+    lastNoiseTRef.current = 0;
   }, []);
 
   // connectRef keeps onclose always calling the latest connect (avoids stale closure)
@@ -114,6 +120,8 @@ export function useDexOrderbook(
     askMapRef.current.clear();
     prevBidsRef.current = [];
     prevAsksRef.current = [];
+    noiseStateRef.current = createNoiseState();
+    lastNoiseTRef.current = 0;
     setState(s => ({ ...s, connecting: true, connected: false, error: null }));
 
     let ws: WebSocket;
@@ -179,9 +187,20 @@ export function useDexOrderbook(
       emaRef.current    = alpha * imbalance + (1 - alpha) * emaRef.current;
       lastEmaTRef.current = now;
 
+      // 5-stage noise reduction pipeline
+      const tradingSignal = computeTradingSignal(
+        imbalance,
+        noiseStateRef.current,
+        now,
+        lastNoiseTRef.current,
+        { emaHalfLifeMs: EMA_HALFLIFE_MS },
+      );
+      lastNoiseTRef.current = now;
+
       latestRef.current = {
         bids, asks, symbol: sym, timestamp: now,
         imbalance, emaImbalance: emaRef.current,
+        tradingSignal,
         totalBidVol, totalAskVol, spread,
         connected: true, connecting: false, error: null,
       };
