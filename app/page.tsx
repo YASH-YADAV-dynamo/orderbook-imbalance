@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FORMULA_META, FormulaType } from '@/types/orderbook';
 import { useDexOrderbook } from '@/hooks/useDexOrderbook';
+import { useBinancePrice } from '@/hooks/useBinancePrice';
 import { useAppStore } from '@/store/useAppStore';
 import { ADAPTERS } from '@/lib/dexAdapters';
 import { getAllPairs } from '@/lib/pairs';
@@ -47,14 +48,18 @@ export default function LandingPage() {
 
   const [showTooltip, setShowTooltip] = useState(false);
 
-  const pacifica = useDexOrderbook(ADAPTERS.pacifica, symbol, formula, params);
-  const zo       = useDexOrderbook(ADAPTERS['01'],    symbol, formula, params);
-  const hotstuff = useDexOrderbook(ADAPTERS.hotstuff, symbol, formula, params);
-  const paradex  = useDexOrderbook(ADAPTERS.paradex,  symbol, formula, params);
-  const hibachi  = useDexOrderbook(ADAPTERS.hibachi,  symbol, formula, params);
+  const refMid = useBinancePrice(symbol);
+
+  const pacifica    = useDexOrderbook(ADAPTERS.pacifica,     symbol, formula, params, undefined, refMid);
+  const zo          = useDexOrderbook(ADAPTERS['01'],       symbol, formula, params, undefined, refMid);
+  const hotstuff    = useDexOrderbook(ADAPTERS.hotstuff,    symbol, formula, params, undefined, refMid);
+  const paradex     = useDexOrderbook(ADAPTERS.paradex,     symbol, formula, params, undefined, refMid);
+  const hibachi     = useDexOrderbook(ADAPTERS.hibachi,     symbol, formula, params, undefined, refMid);
+  const hyperliquid = useDexOrderbook(ADAPTERS.hyperliquid, symbol, formula, params, undefined, refMid);
+  const extended    = useDexOrderbook(ADAPTERS.extended,    symbol, formula, params, undefined, refMid);
 
   const hookByAdapter = {
-    pacifica, '01': zo, hotstuff, paradex, hibachi,
+    pacifica, '01': zo, hotstuff, paradex, hibachi, hyperliquid, extended,
   } as const;
 
   const entries: LeaderboardEntry[] = useMemo(() =>
@@ -83,7 +88,7 @@ export default function LandingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       symbol,
-      pacifica.state, zo.state, hotstuff.state, paradex.state, hibachi.state,
+      pacifica.state, zo.state, hotstuff.state, paradex.state, hibachi.state, hyperliquid.state, extended.state,
     ],
   );
 

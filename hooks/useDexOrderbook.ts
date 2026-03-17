@@ -51,6 +51,7 @@ export function useDexOrderbook(
   formula:       FormulaType,
   params:        FormulaParams,
   aggLevel?:     AggLevel,
+  referenceMid?: number,
 ) {
   const [state,   setState]   = useState<OrderbookState>(() => defaultState(displaySymbol));
   const [history, setHistory] = useState<HistoryPoint[]>([]);
@@ -77,11 +78,13 @@ export function useDexOrderbook(
   const formulaRef  = useRef(formula);
   const paramsRef   = useRef(params);
   const aggRef      = useRef(aggLevel);
+  const refMidRef   = useRef(referenceMid);
   adapterRef.current  = adapter;
   symbolRef.current   = displaySymbol;
   formulaRef.current  = formula;
   paramsRef.current   = params;
   aggRef.current      = aggLevel;
+  refMidRef.current   = referenceMid;
 
   const disconnect = useCallback(() => {
     if (pingRef.current)       clearInterval(pingRef.current);
@@ -158,6 +161,7 @@ export function useDexOrderbook(
       const imbalance = computeImbalance(
         formulaRef.current, paramsRef.current,
         bids, asks, prevBidsRef.current, prevAsksRef.current,
+        refMidRef.current,
       );
       prevBidsRef.current = bids;
       prevAsksRef.current = asks;

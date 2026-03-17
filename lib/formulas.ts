@@ -3,7 +3,8 @@ import { FormulaParams, FormulaType, Level } from '@/types/orderbook';
 // Use a tiny epsilon to avoid division by zero for levels exactly at mid
 const MIN_DIST = 1e-9;
 
-function getMid(bids: Level[], asks: Level[]): number {
+function getMid(bids: Level[], asks: Level[], referenceMid?: number): number {
+  if (referenceMid && referenceMid > 0) return referenceMid;
   if (!bids.length || !asks.length) return 0;
   return (parseFloat(bids[0].p) + parseFloat(asks[0].p)) / 2;
 }
@@ -17,8 +18,9 @@ export function calcDistanceWeighted(
   bids: Level[],
   asks: Level[],
   lambda: number,
+  referenceMid?: number,
 ): number {
-  const mid = getMid(bids, asks);
+  const mid = getMid(bids, asks, referenceMid);
   if (!mid) return 0;
 
   const bidW = bids.reduce((s, l) => {
@@ -44,8 +46,9 @@ export function calcNearMid(
   bids: Level[],
   asks: Level[],
   xPct: number,
+  referenceMid?: number,
 ): number {
-  const mid = getMid(bids, asks);
+  const mid = getMid(bids, asks, referenceMid);
   if (!mid) return 0;
 
   const threshold = mid * (xPct / 100);
@@ -140,8 +143,9 @@ export function calcPowerLaw(
   bids: Level[],
   asks: Level[],
   alpha: number,
+  referenceMid?: number,
 ): number {
-  const mid = getMid(bids, asks);
+  const mid = getMid(bids, asks, referenceMid);
   if (!mid) return 0;
 
   const bidW = bids.reduce((s, l) => {
@@ -168,18 +172,19 @@ export function computeImbalance(
   asks: Level[],
   prevBids: Level[],
   prevAsks: Level[],
+  referenceMid?: number,
 ): number {
   switch (formula) {
     case 'distanceWeighted':
-      return calcDistanceWeighted(bids, asks, params.lambda);
+      return calcDistanceWeighted(bids, asks, params.lambda, referenceMid);
     case 'nearMid':
-      return calcNearMid(bids, asks, params.xPct);
+      return calcNearMid(bids, asks, params.xPct, referenceMid);
     case 'ofi':
       return calcOFI(bids, asks, prevBids, prevAsks);
     case 'microprice':
       return calcMicroprice(bids, asks);
     case 'powerLaw':
-      return calcPowerLaw(bids, asks, params.alpha);
+      return calcPowerLaw(bids, asks, params.alpha, referenceMid);
     default:
       return 0;
   }

@@ -32,6 +32,15 @@ const NATIVE_SYMBOLS: Record<string, Record<string, string>> = {
     'SUI/USD': 'SUI/USDT-P', 'XRP/USD': 'XRP/USDT-P', 'BNB/USD': 'BNB/USDT-P',
     'HYPE/USD': 'HYPE/USDT-P',
   },
+  hyperliquid: {
+    'BTC/USD': 'BTC', 'ETH/USD': 'ETH', 'SOL/USD': 'SOL', 'AVAX/USD': 'AVAX',
+    'MATIC/USD': 'MATIC', 'SUI/USD': 'SUI', 'XRP/USD': 'XRP', 'BNB/USD': 'BNB',
+    'HYPE/USD': 'HYPE',
+  },
+  extended: {
+    'BTC/USD': 'BTC-USD', 'ETH/USD': 'ETH-USD', 'SOL/USD': 'SOL-USD',
+    'AVAX/USD': 'AVAX-USD',
+  },
 };
 
 export function resolvePair(pairId: string, adapterId: string): string {

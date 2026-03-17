@@ -293,14 +293,108 @@ export const hibachiAdapter: DexAdapter = {
   },
 };
 
+// ── Hyperliquid ──────────────────────────────────────────────────────────────
+// Full L2 book snapshots pushed every ~0.5 s.
+// levels: [bids[], asks[]], each { px: string, sz: string, n: number }
+
+export const hyperliquidAdapter: DexAdapter = {
+  id:               'hyperliquid',
+  name:             'Hyperliquid',
+  route:            '/hyperliquid',
+  color:            '#84cc16',
+  supportedSymbols: getPairsForAdapter('hyperliquid').map(p => p.id),
+
+  toWsSymbol:       (s) => resolvePair(s, 'hyperliquid'),
+  getWsUrl:         () => 'wss://api.hyperliquid.xyz/ws',
+
+  buildSubscribeMsg: (sym) => ({
+    method: 'subscribe',
+    subscription: { type: 'l2Book', coin: sym },
+  }),
+
+  processMessage: (raw) => {
+    const msg = raw as {
+      channel?: string;
+      data?: {
+        coin?: string;
+        time?: number;
+        levels?: [Array<{ px: string; sz: string; n: number }>, Array<{ px: string; sz: string; n: number }>];
+      };
+    };
+
+    if (msg.channel !== 'l2Book' || !msg.data?.levels) return null;
+
+    const [rawBids, rawAsks] = msg.data.levels;
+    const bids: Level[] = rawBids.map(l => ({ p: l.px, a: l.sz, n: l.n }));
+    const asks: Level[] = rawAsks.map(l => ({ p: l.px, a: l.sz, n: l.n }));
+
+    return { mode: 'direct', bids, asks };
+  },
+};
+
+// ── Extended ─────────────────────────────────────────────────────────────────
+// Snapshot + delta feed. Symbol embedded in URL — no subscribe message.
+// Snapshot levels have { p, q } where q = absolute size.
+// Delta levels have { p, q, c } where q = change, c = new absolute size.
+
+interface ExtendedLevel { p: string; q: string; c?: string }
+
+export const extendedAdapter: DexAdapter = {
+  id:               'extended',
+  name:             'Extended',
+  route:            '/extended',
+  color:            '#06b6d4',
+  supportedSymbols: getPairsForAdapter('extended').map(p => p.id),
+
+  toWsSymbol:        (s) => resolvePair(s, 'extended'),
+  getWsUrl:          (sym) =>
+    `wss://api.starknet.extended.exchange/stream.extended.exchange/v1/orderbooks/${sym}`,
+  buildSubscribeMsg: null,
+
+  processMessage: (raw, bidMap, askMap) => {
+    const msg = raw as {
+      type?: 'SNAPSHOT' | 'DELTA';
+      data?: {
+        t?: string;
+        m?: string;
+        b?: ExtendedLevel[];
+        a?: ExtendedLevel[];
+      };
+    };
+
+    if (!msg.data || !msg.type) return null;
+    const isSnapshot = msg.type === 'SNAPSHOT';
+
+    if (isSnapshot) {
+      bidMap.clear();
+      askMap.clear();
+    }
+
+    const apply = (levels: ExtendedLevel[] | undefined, map: Map<string, number>) => {
+      if (!levels) return;
+      levels.forEach((lv) => {
+        const size = parseFloat(isSnapshot ? lv.q : (lv.c ?? lv.q));
+        size === 0 ? map.delete(lv.p) : map.set(lv.p, size);
+      });
+    };
+
+    apply(msg.data.b, bidMap);
+    apply(msg.data.a, askMap);
+
+    return { mode: 'map' };
+  },
+};
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 
 export const ADAPTERS = {
-  pacifica: pacificaAdapter,
-  '01':     zoAdapter,
-  hotstuff: hotstuffAdapter,
-  paradex:  paradexAdapter,
-  hibachi:  hibachiAdapter,
+  pacifica:     pacificaAdapter,
+  '01':         zoAdapter,
+  hotstuff:     hotstuffAdapter,
+  paradex:      paradexAdapter,
+  hibachi:      hibachiAdapter,
+  hyperliquid:  hyperliquidAdapter,
+  extended:     extendedAdapter,
 } as const;
 
 export type AdapterId = keyof typeof ADAPTERS;

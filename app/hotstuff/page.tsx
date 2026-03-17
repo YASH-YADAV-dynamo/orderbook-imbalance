@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { DEFAULT_FORMULA_PARAMS, FormulaParams, FormulaType } from '@/types/orderbook';
 import { useDexOrderbook } from '@/hooks/useDexOrderbook';
+import { useBinancePrice } from '@/hooks/useBinancePrice';
 import DashboardLayout from '@/components/DashboardLayout';
 import { ADAPTERS } from '@/lib/dexAdapters';
 import { getPairsForAdapter } from '@/lib/pairs';
@@ -18,8 +19,10 @@ export default function HotstuffDashboard() {
   const [formula, setFormula] = useState<FormulaType>('distanceWeighted');
   const [params,  setParams]  = useState<FormulaParams>(DEFAULT_FORMULA_PARAMS);
 
+  const refMid = useBinancePrice(symbol);
+
   const { state, history, reconnect } = useDexOrderbook(
-    ADAPTERS.hotstuff, symbol, formula, params,
+    ADAPTERS.hotstuff, symbol, formula, params, undefined, refMid,
   );
 
   return (

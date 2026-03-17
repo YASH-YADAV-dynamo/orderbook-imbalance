@@ -9,9 +9,9 @@ import { ADAPTERS } from '@/lib/dexAdapters';
 import { getPairsForAdapter } from '@/lib/pairs';
 import { useAppStore } from '@/store/useAppStore';
 
-const PAIRS = getPairsForAdapter('paradex');
+const PAIRS = getPairsForAdapter('extended');
 
-export default function ParadexDashboard() {
+export default function ExtendedDashboard() {
   const darkMode       = useAppStore(s => s.darkMode);
   const toggleDarkMode = useAppStore(s => s.toggleDarkMode);
 
@@ -22,12 +22,12 @@ export default function ParadexDashboard() {
   const refMid = useBinancePrice(symbol);
 
   const { state, history, reconnect } = useDexOrderbook(
-    ADAPTERS.paradex, symbol, formula, params, undefined, refMid,
+    ADAPTERS.extended, symbol, formula, params, undefined, refMid,
   );
 
   return (
     <DashboardLayout
-      brandName="PARADEX"
+      brandName="EXTENDED"
       supportedPairs={PAIRS}
       backHref="/"
       state={state} history={history} reconnect={reconnect}
