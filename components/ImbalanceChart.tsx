@@ -21,30 +21,39 @@ ChartJS.register(LineElement, PointElement, LinearScale, TimeScale, Filler, Tool
 
 interface ImbalanceChartProps {
   history: HistoryPoint[];
+  darkMode: boolean;
 }
 
-export default function ImbalanceChart({ history }: ImbalanceChartProps) {
+export default function ImbalanceChart({ history, darkMode }: ImbalanceChartProps) {
+  const c = darkMode
+    ? { grid: '#1e1e2e', tick: '#4a5568', border: '#2d2d42', tooltipBg: '#111118', tooltipBorder: '#2d2d42', tooltipTitle: '#94a3b8', tooltipBody: '#e2e8f0' }
+    : { grid: '#e2e8f0', tick: '#64748b', border: '#cbd5e1', tooltipBg: '#ffffff', tooltipBorder: '#e2e8f0', tooltipTitle: '#64748b', tooltipBody: '#0f172a' };
+
+  const bidColor = darkMode ? '#00ff88' : '#059669';
+  const askColor = darkMode ? '#ff3366' : '#dc2626';
+
   const data: ChartData<'line'> = useMemo(() => ({
     datasets: [
       {
         data: history.map(p => ({ x: p.t, y: parseFloat((p.imbalance * 100).toFixed(2)) })),
         borderColor: (ctx) => {
           const chart = ctx.chart;
-          const { ctx: c, chartArea } = chart;
-          if (!chartArea) return '#00ff88';
-          const gradient = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-          gradient.addColorStop(0, '#00ff88');
-          gradient.addColorStop(0.5, '#888888');
-          gradient.addColorStop(1, '#ff3366');
+          const { ctx: canvasCtx, chartArea } = chart;
+          if (!chartArea) return bidColor;
+          const gradient = canvasCtx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          gradient.addColorStop(0, bidColor);
+          gradient.addColorStop(0.5, darkMode ? '#888888' : '#94a3b8');
+          gradient.addColorStop(1, askColor);
           return gradient;
         },
-        borderWidth: 1.5,
+        borderWidth: 2,
         pointRadius: 0,
         tension: 0.3,
         fill: false,
       },
     ],
-  }), [history]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [history, darkMode]);
 
   const options: ChartOptions<'line'> = useMemo(() => ({
     responsive: true,
@@ -54,38 +63,38 @@ export default function ImbalanceChart({ history }: ImbalanceChartProps) {
       x: {
         type: 'time',
         time: { unit: 'second', displayFormats: { second: 'HH:mm:ss' } },
-        grid: { color: '#1a1a1a', lineWidth: 1 },
+        grid: { color: c.grid, lineWidth: 1 },
         ticks: {
-          color: '#444',
-          font: { family: 'var(--font-mono)', size: 9 },
+          color: c.tick,
+          font: { family: 'var(--font-mono)', size: 10 },
           maxTicksLimit: 8,
         },
-        border: { color: '#222' },
+        border: { color: c.border },
       },
       y: {
         min: -100,
         max: 100,
         grid: {
-          color: (ctx) => ctx.tick.value === 0 ? '#333' : '#111',
-          lineWidth: (ctx) => ctx.tick.value === 0 ? 1 : 1,
+          color: (ctx) => ctx.tick.value === 0 ? (darkMode ? '#333344' : '#cbd5e1') : c.grid,
+          lineWidth: 1,
         },
         ticks: {
-          color: '#444',
-          font: { family: 'var(--font-mono)', size: 9 },
+          color: c.tick,
+          font: { family: 'var(--font-mono)', size: 10 },
           callback: (v) => `${Number(v) > 0 ? '+' : ''}${v}%`,
           maxTicksLimit: 7,
         },
-        border: { color: '#222' },
+        border: { color: c.border },
       },
     },
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#111',
-        borderColor: '#333',
+        backgroundColor: c.tooltipBg,
+        borderColor: c.tooltipBorder,
         borderWidth: 1,
-        titleColor: '#888',
-        bodyColor: '#eee',
+        titleColor: c.tooltipTitle,
+        bodyColor: c.tooltipBody,
         titleFont: { family: 'var(--font-mono)', size: 10 },
         bodyFont: { family: 'var(--font-mono)', size: 11 },
         callbacks: {
@@ -96,7 +105,8 @@ export default function ImbalanceChart({ history }: ImbalanceChartProps) {
         },
       },
     },
-  }), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [darkMode]);
 
   return (
     <div className={styles.panel}>

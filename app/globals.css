@@ -1,15 +1,39 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
 
+/* ── Dark theme (default) ─────────────────────────────────────────────── */
 :root {
-  --bg: #000000;
-  --bg-1: #040404;
-  --grid: #1a1a1a;
-  --grid-bright: #282828;
-  --fg: #e8e8e8;
-  --muted: #555555;
+  --bg: #0a0a0f;
+  --bg-1: #111118;
+  --bg-2: #0d0d14;
+  --grid: #1e1e2e;
+  --grid-bright: #2d2d42;
+  --fg: #e2e8f0;
+  --fg-muted: #94a3b8;
+  --muted: #4a5568;
   --bid: #00ff88;
   --ask: #ff3366;
+  --accent: #6366f1;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --radius: 12px;
   --font-mono: 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+}
+
+/* ── Light theme ──────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg: #f1f5f9;
+  --bg-1: #ffffff;
+  --bg-2: #f8fafc;
+  --grid: #e2e8f0;
+  --grid-bright: #cbd5e1;
+  --fg: #0f172a;
+  --fg-muted: #475569;
+  --muted: #94a3b8;
+  --bid: #059669;
+  --ask: #dc2626;
+  --accent: #6366f1;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-hover: 0 6px 24px rgba(0, 0, 0, 0.12);
 }
 
 *, *::before, *::after {
@@ -25,13 +49,14 @@ html, body {
   font-family: var(--font-mono);
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
+  /* overflow controlled per-page — dashboards use height:100vh on .shell */
+  transition: background 0.25s ease, color 0.25s ease;
 }
 
 /* Thin scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--grid-bright); }
+::-webkit-scrollbar-thumb { background: var(--grid-bright); border-radius: 2px; }
 
 /* Selection */
-::selection { background: rgba(0, 255, 136, 0.15); }
+::selection { background: rgba(99, 102, 241, 0.2); }

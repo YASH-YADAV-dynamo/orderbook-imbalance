@@ -16,9 +16,9 @@ export default function ImbalanceGauge({ imbalance, symbol }: ImbalanceGaugeProp
   return (
     <div className={styles.wrapper}>
       <div className={styles.meta}>
-        <span className={styles.sideLabel} data-side={isBid ? 'bid' : 'ask'}>{side}</span>
-        <span className={styles.symbol}>{symbol} / IMBALANCE</span>
+        <span className={styles.symbol}>{symbol} · IMBALANCE</span>
         <span className={styles.value} data-side={isBid ? 'bid' : 'ask'}>{label}</span>
+        <span className={styles.sideLabel} data-side={isBid ? 'bid' : 'ask'}>{side}</span>
       </div>
 
       <div className={styles.track}>

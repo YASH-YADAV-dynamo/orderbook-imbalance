@@ -11,15 +11,6 @@ const FORMULA_ORDER: FormulaType[] = [
   'powerLaw',
 ];
 
-// Human-readable formula expressions
-const FORMULA_EXPR: Record<FormulaType, string> = {
-  distanceWeighted: 'Σ Bᵢ·e^(-λdᵢ) vs Σ Aᵢ·e^(-λdᵢ)',
-  nearMid:          'B±x% vs A±x%',
-  ofi:              'Σ(ΔBᵢ - ΔAᵢ) / DepthN',
-  microprice:       '(MP - Mid) / Spread',
-  powerLaw:         'Σ Bᵢ/dᵢ^α vs Σ Aᵢ/dᵢ^α',
-};
-
 interface FormulaSelectorProps {
   formula: FormulaType;
   params: FormulaParams;
@@ -37,24 +28,25 @@ export default function FormulaSelector({
 
   return (
     <div className={styles.wrapper}>
-      <div className={styles.row}>
-        <label className={styles.label}>FORMULA</label>
-        <select
-          className={styles.select}
-          value={formula}
-          onChange={e => onFormulaChange(e.target.value as FormulaType)}
-        >
-          {FORMULA_ORDER.map((f, i) => (
-            <option key={f} value={f}>
-              [{i + 1}] {FORMULA_META[f].label}
-            </option>
-          ))}
-        </select>
+      <div className={styles.sectionTitle}>FORMULA</div>
 
-        {/* Lambda slider — formula 1 */}
-        {formula === 'distanceWeighted' && (
-          <div className={styles.paramGroup}>
-            <label className={styles.paramLabel}>λ</label>
+      <select
+        className={styles.select}
+        value={formula}
+        onChange={e => onFormulaChange(e.target.value as FormulaType)}
+      >
+        {FORMULA_ORDER.map((f, i) => (
+          <option key={f} value={f}>
+            [{i + 1}] {FORMULA_META[f].label}
+          </option>
+        ))}
+      </select>
+
+      {/* Lambda slider — formula 1 */}
+      {formula === 'distanceWeighted' && (
+        <div className={styles.paramGroup}>
+          <label className={styles.paramLabel}>Decay Rate (λ)</label>
+          <div className={styles.paramRow}>
             <input
               type="range"
               className={styles.slider}
@@ -66,12 +58,14 @@ export default function FormulaSelector({
             />
             <span className={styles.paramValue}>{params.lambda.toFixed(1)}</span>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* xPct slider — formula 2 */}
-        {formula === 'nearMid' && (
-          <div className={styles.paramGroup}>
-            <label className={styles.paramLabel}>x%</label>
+      {/* xPct slider — formula 2 */}
+      {formula === 'nearMid' && (
+        <div className={styles.paramGroup}>
+          <label className={styles.paramLabel}>Band Width (x%)</label>
+          <div className={styles.paramRow}>
             <input
               type="range"
               className={styles.slider}
@@ -83,12 +77,14 @@ export default function FormulaSelector({
             />
             <span className={styles.paramValue}>{params.xPct.toFixed(1)}%</span>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Alpha slider — formula 5 */}
-        {formula === 'powerLaw' && (
-          <div className={styles.paramGroup}>
-            <label className={styles.paramLabel}>α</label>
+      {/* Alpha slider — formula 5 */}
+      {formula === 'powerLaw' && (
+        <div className={styles.paramGroup}>
+          <label className={styles.paramLabel}>Exponent (α)</label>
+          <div className={styles.paramRow}>
             <input
               type="range"
               className={styles.slider}
@@ -100,12 +96,11 @@ export default function FormulaSelector({
             />
             <span className={styles.paramValue}>{params.alpha.toFixed(1)}</span>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className={styles.desc}>
+      <div className={styles.descBox}>
         <span className={styles.badge}>{meta.short}</span>
-        <span className={styles.expr}>{FORMULA_EXPR[formula]}</span>
         <span className={styles.descText}>{meta.description}</span>
       </div>
     </div>

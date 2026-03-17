@@ -39,7 +39,7 @@ export default function DepthBars({ bids, asks }: DepthBarsProps) {
                 style={{ width: `${pct}%` }}
               />
               <span className={styles.amount}>{parseFloat(level.a).toFixed(2)}</span>
-              <span className={styles.orders}>{level.n}</span>
+              <span className={styles.orders}>{level.n > 0 ? level.n : '–'}</span>
               <span className={`${styles.price} ${styles.priceBid}`}>{parseFloat(level.p).toFixed(4)}</span>
             </div>
           );
@@ -68,7 +68,7 @@ export default function DepthBars({ bids, asks }: DepthBarsProps) {
                 style={{ width: `${pct}%` }}
               />
               <span className={`${styles.price} ${styles.priceAsk}`}>{parseFloat(level.p).toFixed(4)}</span>
-              <span className={styles.orders}>{level.n}</span>
+              <span className={styles.orders}>{level.n > 0 ? level.n : '–'}</span>
               <span className={styles.amount}>{parseFloat(level.a).toFixed(2)}</span>
             </div>
           );

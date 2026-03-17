@@ -9,6 +9,7 @@ import {
   TimeScale,
   Filler,
   Tooltip,
+  Legend,
   ChartOptions,
   ChartData,
 } from 'chart.js';
@@ -17,21 +18,29 @@ import { Line } from 'react-chartjs-2';
 import { HistoryPoint } from '@/types/orderbook';
 import styles from './Chart.module.css';
 
-ChartJS.register(LineElement, PointElement, LinearScale, TimeScale, Filler, Tooltip);
+ChartJS.register(LineElement, PointElement, LinearScale, TimeScale, Filler, Tooltip, Legend);
 
 interface VolumeChartProps {
   history: HistoryPoint[];
+  darkMode: boolean;
 }
 
-export default function VolumeChart({ history }: VolumeChartProps) {
+export default function VolumeChart({ history, darkMode }: VolumeChartProps) {
+  const c = darkMode
+    ? { grid: '#1e1e2e', tick: '#4a5568', border: '#2d2d42', tooltipBg: '#111118', tooltipBorder: '#2d2d42', tooltipTitle: '#94a3b8', tooltipBody: '#e2e8f0', legendColor: '#64748b' }
+    : { grid: '#e2e8f0', tick: '#64748b', border: '#cbd5e1', tooltipBg: '#ffffff', tooltipBorder: '#e2e8f0', tooltipTitle: '#64748b', tooltipBody: '#0f172a', legendColor: '#64748b' };
+
+  const bidColor = darkMode ? '#00ff88' : '#059669';
+  const askColor = darkMode ? '#ff3366' : '#dc2626';
+
   const data: ChartData<'line'> = useMemo(() => ({
     datasets: [
       {
         label: 'BID',
         data: history.map(p => ({ x: p.t, y: parseFloat(p.bidVol.toFixed(2)) })),
-        borderColor: '#00ff88',
-        borderWidth: 1,
-        backgroundColor: 'rgba(0,255,136,0.06)',
+        borderColor: bidColor,
+        borderWidth: 1.5,
+        backgroundColor: darkMode ? 'rgba(0,255,136,0.07)' : 'rgba(5,150,105,0.08)',
         pointRadius: 0,
         tension: 0.3,
         fill: true,
@@ -39,15 +48,16 @@ export default function VolumeChart({ history }: VolumeChartProps) {
       {
         label: 'ASK',
         data: history.map(p => ({ x: p.t, y: parseFloat(p.askVol.toFixed(2)) })),
-        borderColor: '#ff3366',
-        borderWidth: 1,
-        backgroundColor: 'rgba(255,51,102,0.06)',
+        borderColor: askColor,
+        borderWidth: 1.5,
+        backgroundColor: darkMode ? 'rgba(255,51,102,0.07)' : 'rgba(220,38,38,0.08)',
         pointRadius: 0,
         tension: 0.3,
         fill: true,
       },
     ],
-  }), [history]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [history, darkMode]);
 
   const options: ChartOptions<'line'> = useMemo(() => ({
     responsive: true,
@@ -57,20 +67,20 @@ export default function VolumeChart({ history }: VolumeChartProps) {
       x: {
         type: 'time',
         time: { unit: 'second', displayFormats: { second: 'HH:mm:ss' } },
-        grid: { color: '#1a1a1a', lineWidth: 1 },
+        grid: { color: c.grid, lineWidth: 1 },
         ticks: {
-          color: '#444',
-          font: { family: 'var(--font-mono)', size: 9 },
+          color: c.tick,
+          font: { family: 'var(--font-mono)', size: 10 },
           maxTicksLimit: 8,
         },
-        border: { color: '#222' },
+        border: { color: c.border },
       },
       y: {
         min: 0,
-        grid: { color: '#111', lineWidth: 1 },
+        grid: { color: c.grid, lineWidth: 1 },
         ticks: {
-          color: '#444',
-          font: { family: 'var(--font-mono)', size: 9 },
+          color: c.tick,
+          font: { family: 'var(--font-mono)', size: 10 },
           callback: (v) => {
             const n = Number(v);
             if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
@@ -78,7 +88,7 @@ export default function VolumeChart({ history }: VolumeChartProps) {
           },
           maxTicksLimit: 5,
         },
-        border: { color: '#222' },
+        border: { color: c.border },
       },
     },
     plugins: {
@@ -87,24 +97,25 @@ export default function VolumeChart({ history }: VolumeChartProps) {
         position: 'top',
         align: 'end',
         labels: {
-          color: '#555',
-          font: { family: 'var(--font-mono)', size: 9 },
-          boxWidth: 8,
-          boxHeight: 8,
-          padding: 12,
+          color: c.legendColor,
+          font: { family: 'var(--font-mono)', size: 10 },
+          boxWidth: 10,
+          boxHeight: 3,
+          padding: 14,
         },
       },
       tooltip: {
-        backgroundColor: '#111',
-        borderColor: '#333',
+        backgroundColor: c.tooltipBg,
+        borderColor: c.tooltipBorder,
         borderWidth: 1,
-        titleColor: '#888',
-        bodyColor: '#eee',
+        titleColor: c.tooltipTitle,
+        bodyColor: c.tooltipBody,
         titleFont: { family: 'var(--font-mono)', size: 10 },
         bodyFont: { family: 'var(--font-mono)', size: 11 },
       },
     },
-  }), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [darkMode]);
 
   return (
     <div className={styles.panel}>
