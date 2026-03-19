@@ -6,15 +6,27 @@
 import WebSocket from 'ws';
 import type { Level } from '../types/orderbook';
 import { computeImbalance } from '../lib/formulas';
-import {
-  createNoiseState,
-  computeTradingSignal,
-  type NoiseReductionState,
-} from '../lib/noiseReduction';
+import { createNoiseState, computeTradingSignal } from '../lib/noiseReduction';
+import type { NoiseReductionState } from '../types/orderbook';
 import { ADAPTERS, type DexAdapter, type AdapterId } from '../lib/dexAdapters';
 import { DEFAULT_FORMULA_PARAMS, type FormulaType, type FormulaParams } from '../types/orderbook';
+import { BinanceBookTicker } from './binanceRef';
 
 const EMA_HALFLIFE_MS = 1000;
+/** If Binance bookTicker is older than this, imbalance falls back to local mid. */
+const BINANCE_REF_STALE_MS = 10_000;
+
+/**
+ * Venue weights for arbitrage ranking (Binance is primary via referenceMid on all imbalances).
+ * Hyperliquid second; all other DEX adapters share the default weight.
+ */
+const ARB_VENUE_WEIGHT: Partial<Record<AdapterId, number>> = {
+  hyperliquid: 2,
+};
+
+function arbVenueWeight(id: AdapterId): number {
+  return ARB_VENUE_WEIGHT[id] ?? 1;
+}
 
 function mapToLevels(map: Map<string, number>, descending: boolean): Level[] {
   return [...map.entries()]
@@ -39,14 +51,12 @@ export interface DexState {
   lastUpdate: number;
 }
 
-export type SignalType = 'noise-reduction' | 'raw';
-
 export class WSAggregator {
   private pairId: string;
   private formula: FormulaType;
   private params: FormulaParams;
-  private signalType: SignalType;
 
+  private binance: BinanceBookTicker;
   private state = new Map<AdapterId, DexState>();
   private wsMap = new Map<AdapterId, WebSocket>();
   private bidMapMap = new Map<AdapterId, Map<string, number>>();
@@ -62,15 +72,15 @@ export class WSAggregator {
     pairId: string,
     formula: FormulaType = 'distanceWeighted',
     params: FormulaParams = DEFAULT_FORMULA_PARAMS,
-    signalType: SignalType = 'noise-reduction',
   ) {
     this.pairId = pairId;
     this.formula = formula;
     this.params = params;
-    this.signalType = signalType;
+    this.binance = new BinanceBookTicker(pairId);
   }
 
   connect(): void {
+    this.binance.connect();
     for (const [id, adapter] of Object.entries(ADAPTERS) as [AdapterId, DexAdapter][]) {
       const wsSymbol = adapter.toWsSymbol(this.pairId);
       if (!wsSymbol) continue;
@@ -137,6 +147,7 @@ export class WSAggregator {
 
           const prevBids = this.prevBidsMap.get(id)!;
           const prevAsks = this.prevAsksMap.get(id)!;
+          const referenceMid = this.binance.getReferenceMid(BINANCE_REF_STALE_MS);
           const imbalance = computeImbalance(
             this.formula,
             this.params,
@@ -144,6 +155,7 @@ export class WSAggregator {
             asks,
             prevBids,
             prevAsks,
+            referenceMid,
           );
           this.prevBidsMap.set(id, bids);
           this.prevAsksMap.set(id, asks);
@@ -209,6 +221,7 @@ export class WSAggregator {
   }
 
   disconnect(): void {
+    this.binance.disconnect();
     for (const ws of this.wsMap.values()) {
       ws.close();
     }
@@ -219,54 +232,78 @@ export class WSAggregator {
     return this.state;
   }
 
-  getSignals(): Record<string, { value: number; confidence: number; raw: number }> {
-    const out: Record<string, { value: number; confidence: number; raw: number }> = {};
+  private signalValue(s: DexState): number {
+    return s.tradingSignal ? s.tradingSignal.value : s.imbalance;
+  }
+
+  private referenceMetaBlock() {
+    const ref = this.binance.snapshotMeta();
+    const active = this.binance.getReferenceMid(BINANCE_REF_STALE_MS);
+    return {
+      referenceMid: ref.referenceMid,
+      referenceConnected: ref.connected,
+      referenceActive: active !== undefined,
+      referenceStaleMs: BINANCE_REF_STALE_MS,
+      note:
+        'Imbalances use Binance USDT bookTicker mid as referenceMid when connected and fresh. Signals use noise-reduced (5-stage) value.',
+    };
+  }
+
+  getSignals(): Record<string, unknown> {
+    const out: Record<string, unknown> = {
+      _meta: this.referenceMetaBlock(),
+    };
     for (const [id, s] of this.state) {
       if (!s.connected) continue;
-      const value =
-        this.signalType === 'noise-reduction' && s.tradingSignal
-          ? s.tradingSignal.value
-          : s.imbalance;
+      const value = this.signalValue(s);
       const confidence = s.tradingSignal?.confidence ?? 1;
       out[id] = { value, confidence, raw: s.imbalance };
     }
     return out;
   }
 
-  getLeaderboard(): Array<{ rank: number; dexId: string; imbalance: number; confidence: number }> {
+  getLeaderboard(): {
+    _meta: ReturnType<WSAggregator['referenceMetaBlock']>;
+    leaderboard: Array<{ rank: number; dexId: string; imbalance: number; confidence: number }>;
+  } {
     const entries = [...this.state.entries()]
       .filter(([, s]) => s.connected)
       .map(([, s]) => ({
         dexId: s.adapterId,
-        imbalance:
-          this.signalType === 'noise-reduction' && s.tradingSignal
-            ? s.tradingSignal.value
-            : s.imbalance,
+        imbalance: this.signalValue(s),
         confidence: s.tradingSignal?.confidence ?? 1,
       }));
     entries.sort((a, b) => Math.abs(b.imbalance) - Math.abs(a.imbalance));
-    return entries.map((e, i) => ({ ...e, rank: i + 1 }));
+    const leaderboard = entries.map((e, i) => ({ ...e, rank: i + 1 }));
+    return { _meta: this.referenceMetaBlock(), leaderboard };
   }
 
   getArbitrage(): {
+    _meta: ReturnType<WSAggregator['referenceMetaBlock']> & {
+      arbWeighting: string;
+    };
     max: { pair: string; buyDex: string; sellDex: string; score: number } | null;
-    opportunities: Array<{ buyDex: string; sellDex: string; score: number }>;
+    opportunities: Array<{
+      buyDex: string;
+      sellDex: string;
+      score: number;
+      legWeight: number;
+    }>;
   } {
     const entries = [...this.state.entries()].filter(([, s]) => s.connected);
-    const opportunities: Array<{ buyDex: string; sellDex: string; score: number }> = [];
+    const opportunities: Array<{
+      buyDex: string;
+      sellDex: string;
+      score: number;
+      legWeight: number;
+    }> = [];
 
     for (let i = 0; i < entries.length; i++) {
       for (let j = i + 1; j < entries.length; j++) {
         const [idA, sA] = entries[i];
         const [idB, sB] = entries[j];
-        const imbA =
-          this.signalType === 'noise-reduction' && sA.tradingSignal
-            ? sA.tradingSignal.value
-            : sA.imbalance;
-        const imbB =
-          this.signalType === 'noise-reduction' && sB.tradingSignal
-            ? sB.tradingSignal.value
-            : sB.imbalance;
+        const imbA = this.signalValue(sA);
+        const imbB = this.signalValue(sB);
         const diff = Math.abs(imbA - imbB);
         const liquidity = Math.min(
           sA.totalBidVol,
@@ -275,11 +312,14 @@ export class WSAggregator {
           sB.totalAskVol,
         );
         const spreadPenalty = 1 / (1 + (sA.spread + sB.spread) / 2);
-        const score = diff * Math.min(liquidity / 1e6, 1) * spreadPenalty;
+        const baseScore = diff * Math.min(liquidity / 1e6, 1) * spreadPenalty;
 
         const buyDex = imbA > imbB ? idA : idB;
         const sellDex = imbA > imbB ? idB : idA;
-        opportunities.push({ buyDex, sellDex, score });
+        const legWeight = Math.sqrt(arbVenueWeight(buyDex) * arbVenueWeight(sellDex));
+        const score = baseScore * legWeight;
+
+        opportunities.push({ buyDex, sellDex, score, legWeight });
       }
     }
 
@@ -293,6 +333,14 @@ export class WSAggregator {
         }
       : null;
 
-    return { max, opportunities };
+    return {
+      _meta: {
+        ...this.referenceMetaBlock(),
+        arbWeighting:
+          'Scores use sqrt(w_buy*w_sell). Binance anchors all imbalances via referenceMid. Hyperliquid w=2; other venues w=1.',
+      },
+      max,
+      opportunities,
+    };
   }
 }

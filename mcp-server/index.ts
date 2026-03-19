@@ -1,31 +1,19 @@
 #!/usr/bin/env node
 /**
  * MCP Server for Orderbook Imbalance.
- * Connects to DEX WebSockets, exposes tools: get_signals, get_leaderboard, get_arbitrage.
- * Run: npx tsx mcp-server/index.ts [--signal-type noise-reduction|raw]
+ * Connects to DEX WebSockets + Binance bookTicker (reference mid for imbalances).
+ * Signals: noise-reduced (5-stage) only. Arbitrage scores weighted (Hyperliquid 2× vs others; Binance via ref mid).
+ * Run: npx tsx mcp-server/index.ts
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { WSAggregator, type SignalType } from './wsAggregator';
+import { WSAggregator } from './wsAggregator';
 
 const DEFAULT_PAIR = 'BTC/USD';
 
-function parseArgs(): { signalType: SignalType } {
-  const args = process.argv.slice(2);
-  let signalType: SignalType = 'noise-reduction';
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--signal-type' && args[i + 1]) {
-      signalType = args[i + 1] === 'raw' ? 'raw' : 'noise-reduction';
-      break;
-    }
-  }
-  return { signalType };
-}
-
-const { signalType } = parseArgs();
-const aggregator = new WSAggregator(DEFAULT_PAIR, 'distanceWeighted', undefined, signalType);
+const aggregator = new WSAggregator(DEFAULT_PAIR, 'distanceWeighted', undefined);
 aggregator.connect();
 
 const server = new McpServer({
@@ -36,7 +24,8 @@ const server = new McpServer({
 server.registerTool(
   'get_signals',
   {
-    description: 'Get trading signals (noise-reduced or raw) for each DEX',
+    description:
+      'Noise-reduced trading signals per DEX. _meta: Binance USDT mid as referenceMid when fresh; per-venue keys hold value/confidence/raw.',
     inputSchema: {
       symbol: z.string().optional().describe('Pair id, e.g. BTC/USD (default: BTC/USD)'),
     },
@@ -51,7 +40,8 @@ server.registerTool(
 server.registerTool(
   'get_leaderboard',
   {
-    description: 'Get DEX leaderboard ranked by imbalance (least balanced first)',
+    description:
+      'Leaderboard ranked by |noise-reduced imbalance| (most extreme first). Includes _meta with Binance reference info.',
     inputSchema: {
       symbol: z.string().optional().describe('Pair id (default: BTC/USD)'),
     },
@@ -66,7 +56,8 @@ server.registerTool(
 server.registerTool(
   'get_arbitrage',
   {
-    description: 'Get cross-DEX arbitrage opportunities (max opportunity first)',
+    description:
+      'Cross-DEX signal spread ranking (not executable PnL). Weighted: sqrt(w_buy*w_sell) with Hyperliquid=2, others=1; Binance anchors imbalances via referenceMid.',
     inputSchema: {
       symbol: z.string().optional().describe('Pair id (default: BTC/USD)'),
     },
