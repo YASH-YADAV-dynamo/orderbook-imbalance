@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "mcp": "tsx mcp-server/index.ts"
+    "mcp": "tsx mcp-server/index.ts",
+    "mcp-bridge": "tsx mcp-bridge/server.ts"
   },
   "dependencies": {
     "chart.js": "^4.5.1",

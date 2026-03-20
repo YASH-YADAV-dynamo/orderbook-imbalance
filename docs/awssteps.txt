@@ -1,0 +1,61 @@
+1) EC2 -> Launch Ubuntu (t3.small), open ports 22/80/443.
+2) SSH:
+ssh -i <key.pem> ubuntu@<EC2_IP>
+
+3) Install:
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs nginx git
+sudo npm i -g pm2
+
+4) Upload repo:
+cd /home/ubuntu
+git clone <PRIVATE_GITHUB_REPO_URL> orderbook-imbalance
+cd orderbook-imbalance
+npm ci
+
+5) Start bridge:
+export MCP_BRIDGE_API_KEY='<LONG_RANDOM_SECRET>'
+export PORT=8787
+pm2 start "npx tsx mcp-bridge/server.ts" --name mcp-bridge
+pm2 save
+pm2 startup
+
+6) Nginx reverse proxy:
+sudo tee /etc/nginx/sites-available/mcp-bridge >/dev/null <<'EOF'
+server {
+  listen 80;
+  server_name api.yourdomain.com;
+  location / {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+EOF
+sudo ln -s /etc/nginx/sites-available/mcp-bridge /etc/nginx/sites-enabled/mcp-bridge
+sudo nginx -t && sudo systemctl reload nginx
+
+7) TLS:
+sudo apt-get install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d api.yourdomain.com
+
+8) Test:
+curl https://api.yourdomain.com/health
+curl -H "X-API-Key: <LONG_RANDOM_SECRET>" "https://api.yourdomain.com/v1/signals"
+curl -H "X-API-Key: <LONG_RANDOM_SECRET>" "https://api.yourdomain.com/v1/signals?symbol=ETH/USD"
+
+9) User MCP config:
+{
+  "mcpServers": {
+    "orderbook-signals": {
+      "command": "npx",
+      "args": ["-y", "orderbook-signals-mcp"],
+      "env": {
+        "ORDERBOOK_MCP_API_URL": "https://api.yourdomain.com",
+        "ORDERBOOK_MCP_API_KEY": "<LONG_RANDOM_SECRET>"
+      }
+    }
+  }
+}
