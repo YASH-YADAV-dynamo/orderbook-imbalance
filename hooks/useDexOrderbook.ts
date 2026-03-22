@@ -20,6 +20,7 @@ const RECONNECT_DELAY_MS   = 3_000;
 const MAX_RETRIES          = 5;
 const HISTORY_SAMPLE_MS    = 200;   // max 5 history points/sec
 const EMA_HALFLIFE_MS      = 1000;  // ~1 s smoothing for fair comparison
+const BATCH_WINDOW_MS      = 50;   // coalesce orderbook updates before imbalance computation
 
 function mapToLevels(map: Map<string, number>, descending: boolean): Level[] {
   return [...map.entries()]
@@ -67,6 +68,11 @@ export function useDexOrderbook(
   const prevBidsRef   = useRef<Level[]>([]);
   const prevAsksRef   = useRef<Level[]>([]);
 
+  // Message batching: coalesce updates within BATCH_WINDOW_MS before imbalance computation
+  const pendingDirectRef = useRef<{ bids: Level[]; asks: Level[] } | null>(null);
+  const pendingDirtyRef  = useRef(false);
+  const batchTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // RAF coalescing + EMA + noise reduction
   const latestRef       = useRef<OrderbookState | null>(null);
   const rafIdRef        = useRef(0);
@@ -93,6 +99,7 @@ export function useDexOrderbook(
   const disconnect = useCallback(() => {
     if (pingRef.current)       clearInterval(pingRef.current);
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    if (batchTimerRef.current) { clearTimeout(batchTimerRef.current); batchTimerRef.current = null; }
     if (rafIdRef.current)      { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = 0; }
     if (wsRef.current) {
       wsRef.current.onclose = null;
@@ -109,7 +116,7 @@ export function useDexOrderbook(
   // connectRef keeps onclose always calling the latest connect (avoids stale closure)
   const connectRef = useRef<() => void>(() => {});
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     const ad  = adapterRef.current;
     const sym = symbolRef.current;
     const wsSymbol = ad.toWsSymbol(sym);
@@ -123,6 +130,19 @@ export function useDexOrderbook(
     noiseStateRef.current = createNoiseState();
     lastNoiseTRef.current = 0;
     setState(s => ({ ...s, connecting: true, connected: false, error: null }));
+
+    if (ad.fetchInitialSnapshot) {
+      try {
+        await ad.fetchInitialSnapshot(wsSymbol, bidMapRef.current, askMapRef.current);
+      } catch (err) {
+        setState(s => ({
+          ...s,
+          connecting: false,
+          error: err instanceof Error ? err.message : 'Failed to fetch snapshot',
+        }));
+        return;
+      }
+    }
 
     let ws: WebSocket;
     try {
@@ -149,18 +169,17 @@ export function useDexOrderbook(
       }
     };
 
-    ws.onmessage = (event: MessageEvent) => {
-      let raw: unknown;
-      try { raw = JSON.parse(event.data as string); } catch { return; }
-
-      const result = adapterRef.current.processMessage(raw, bidMapRef.current, askMapRef.current);
-      if (!result) return;
+    const flushBatch = () => {
+      batchTimerRef.current = null;
+      if (!pendingDirtyRef.current) return;
+      pendingDirtyRef.current = false;
 
       let bids: Level[];
       let asks: Level[];
-      if (result.mode === 'direct') {
-        bids = result.bids;
-        asks = result.asks;
+      if (pendingDirectRef.current) {
+        bids = pendingDirectRef.current.bids;
+        asks = pendingDirectRef.current.asks;
+        pendingDirectRef.current = null;
       } else {
         bids = mapToLevels(bidMapRef.current, true);
         asks = mapToLevels(askMapRef.current, false);
@@ -181,13 +200,11 @@ export function useDexOrderbook(
       const spread      = bestBid && bestAsk ? Math.max(0, bestAsk - bestBid) : 0;
       const now         = Date.now();
 
-      // Time-corrected EMA: same effective window regardless of message rate
       const dt    = lastEmaTRef.current ? now - lastEmaTRef.current : EMA_HALFLIFE_MS;
       const alpha = 1 - Math.exp(-dt / EMA_HALFLIFE_MS);
       emaRef.current    = alpha * imbalance + (1 - alpha) * emaRef.current;
       lastEmaTRef.current = now;
 
-      // 5-stage noise reduction pipeline
       const tradingSignal = computeTradingSignal(
         imbalance,
         noiseStateRef.current,
@@ -205,7 +222,6 @@ export function useDexOrderbook(
         connected: true, connecting: false, error: null,
       };
 
-      // Coalesce into a single render per animation frame
       if (!rafIdRef.current) {
         rafIdRef.current = requestAnimationFrame(() => {
           rafIdRef.current = 0;
@@ -216,13 +232,31 @@ export function useDexOrderbook(
           const t = Date.now();
           if (t - lastHistoryT.current >= HISTORY_SAMPLE_MS) {
             lastHistoryT.current = t;
+            const imb = snap.tradingSignal?.value ?? snap.imbalance;
             setHistory(prev => {
               const next = prev.filter(p => p.t >= t - HISTORY_DURATION_MS);
-              next.push({ t, imbalance: snap.imbalance, bidVol: snap.totalBidVol, askVol: snap.totalAskVol });
+              next.push({ t, imbalance: imb, bidVol: snap.totalBidVol, askVol: snap.totalAskVol });
               return next;
             });
           }
         });
+      }
+    };
+
+    ws.onmessage = (event: MessageEvent) => {
+      let raw: unknown;
+      try { raw = JSON.parse(event.data as string); } catch { return; }
+
+      const result = adapterRef.current.processMessage(raw, bidMapRef.current, askMapRef.current);
+      if (!result) return;
+
+      if (result.mode === 'direct') {
+        pendingDirectRef.current = { bids: result.bids, asks: result.asks };
+      }
+      pendingDirtyRef.current = true;
+
+      if (!batchTimerRef.current) {
+        batchTimerRef.current = setTimeout(flushBatch, BATCH_WINDOW_MS);
       }
     };
 

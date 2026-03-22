@@ -59,9 +59,10 @@ export default function LandingPage() {
   const hyperliquid = useDexOrderbook(ADAPTERS.hyperliquid, symbol, formula, params, undefined, refMid);
   const extended    = useDexOrderbook(ADAPTERS.extended,    symbol, formula, params, undefined, refMid);
   const aster       = useDexOrderbook(ADAPTERS.aster,       symbol, formula, params, undefined, refMid);
+  const nado        = useDexOrderbook(ADAPTERS.nado,        symbol, formula, params, undefined, refMid);
 
   const hookByAdapter = {
-    pacifica, '01': zo, hotstuff, paradex, hibachi, hyperliquid, extended, aster,
+    pacifica, '01': zo, hotstuff, paradex, hibachi, hyperliquid, extended, aster, nado,
   } as const;
 
   const entries: LeaderboardEntry[] = useMemo(() =>
@@ -69,14 +70,15 @@ export default function LandingPage() {
       .map(([id, adapter]) => {
         const { state } = hookByAdapter[id];
         const wsSymbol  = adapter.toWsSymbol(symbol);
+        const primaryImbalance = state.tradingSignal?.value ?? state.emaImbalance;
         return {
           id:            adapter.id,
           name:          adapter.name,
           route:         adapter.route,
           color:         adapter.color,
           symbol,
-          imbalance:     state.imbalance,
-          emaImbalance:  state.emaImbalance,
+          imbalance:     primaryImbalance,
+          emaImbalance:  primaryImbalance,
           bidVol:        state.totalBidVol,
           askVol:        state.totalAskVol,
           spread:        state.bids[0] && state.asks[0]
@@ -90,7 +92,7 @@ export default function LandingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       symbol,
-      pacifica.state, zo.state, hotstuff.state, paradex.state, hibachi.state, hyperliquid.state, extended.state, aster.state,
+      pacifica.state, zo.state, hotstuff.state, paradex.state, hibachi.state, hyperliquid.state, extended.state, aster.state, nado.state,
     ],
   );
 
@@ -105,7 +107,7 @@ export default function LandingPage() {
 
       <nav className={styles.nav}>
         <div className={styles.navBrand}>
-          <span className={styles.navDot} />
+          <img src="/image.jpg" alt="" className={styles.navLogo} />
           <span className={styles.navTitle}>Orderbook Imbalance</span>
         </div>
         <button className={styles.themeBtn} onClick={toggleDarkMode}>

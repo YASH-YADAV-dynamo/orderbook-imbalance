@@ -26,7 +26,7 @@ function parseArgs(): { signalType: SignalType } {
 
 const { signalType } = parseArgs();
 const aggregator = new WSAggregator(DEFAULT_PAIR, 'distanceWeighted', undefined, signalType);
-aggregator.connect();
+void aggregator.connect();
 
 const server = new McpServer({
   name: 'orderbook-signals',

@@ -42,6 +42,16 @@ export interface DexAdapter {
   pingIntervalMs?: number;
 
   /**
+   * Optional: fetch initial orderbook snapshot before subscribing to incremental updates.
+   * Used by feeds that only send diffs (e.g. Nado book_depth). Populate bidMap/askMap.
+   */
+  fetchInitialSnapshot?: (
+    wsSymbol: string,
+    bidMap: Map<string, number>,
+    askMap: Map<string, number>,
+  ) => Promise<void>;
+
+  /**
    * Parse one raw WebSocket message.
    * For 'map' mode: mutate bidMap/askMap in-place then return { mode:'map' }.
    * For 'direct' mode: return { mode:'direct', bids, asks } to bypass maps.
@@ -385,6 +395,129 @@ export const extendedAdapter: DexAdapter = {
   },
 };
 
+// ── Nado ─────────────────────────────────────────────────────────────────────
+// book_depth: incremental diffs, batched ~50ms. Initial snapshot via Gateway WebSocket.
+// Prices/sizes are x18 fixed-point. product_id = wsSymbol.
+
+const X18 = BigInt(1e18);
+
+function nadoX18ToStr(s: string): string {
+  const n = BigInt(s);
+  const int = n / X18;
+  const rem = n % X18;
+  if (rem === BigInt(0)) return int.toString();
+  return `${int}.${rem.toString().padStart(18, '0').replace(/0+$/, '')}`;
+}
+
+async function nadoFetchSnapshot(
+  productId: string,
+  bidMap: Map<string, number>,
+  askMap: Map<string, number>,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket('wss://gateway.prod.nado.xyz/v1/ws');
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new Error('Snapshot timeout'));
+    }, 10_000);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        type: 'market_liquidity',
+        product_id: parseInt(productId, 10),
+        depth: 50,
+      }));
+    };
+
+    ws.onmessage = (event: MessageEvent) => {
+      try {
+        const json = JSON.parse(event.data as string);
+        clearTimeout(timeout);
+        ws.close();
+        if (json.status !== 'success' || !json.data) {
+          reject(new Error(json.error || 'Snapshot failed'));
+          return;
+        }
+        bidMap.clear();
+        askMap.clear();
+        const { bids = [], asks = [] } = json.data;
+        bids.forEach(([p, a]: [string, string]) => {
+          const price = nadoX18ToStr(p);
+          const size = Number(BigInt(a) / X18);
+          if (size > 0) bidMap.set(price, size);
+        });
+        asks.forEach(([p, a]: [string, string]) => {
+          const price = nadoX18ToStr(p);
+          const size = Number(BigInt(a) / X18);
+          if (size > 0) askMap.set(price, size);
+        });
+        resolve();
+      } catch (e) {
+        clearTimeout(timeout);
+        ws.close();
+        reject(e);
+      }
+    };
+
+    ws.onerror = () => {
+      clearTimeout(timeout);
+      ws.close();
+      reject(new Error('WebSocket error'));
+    };
+
+    ws.onclose = () => {
+      clearTimeout(timeout);
+    };
+  });
+}
+
+export const nadoAdapter: DexAdapter = {
+  id:               'nado',
+  name:             'Nado',
+  route:            '/nado',
+  color:            '#0ea5e9',
+  supportedSymbols: getPairsForAdapter('nado').map(p => p.id),
+
+  toWsSymbol:       (s) => resolvePair(s, 'nado'),
+  getWsUrl:         () => 'wss://gateway.prod.nado.xyz/v1/subscribe',
+
+  buildSubscribeMsg: (productId) => ({
+    method: 'subscribe',
+    stream: { type: 'book_depth', product_id: parseInt(productId, 10) },
+    id: 1,
+  }),
+
+  pingMsg:         undefined,
+  pingIntervalMs:  30_000,
+  fetchInitialSnapshot: nadoFetchSnapshot,
+
+  processMessage: (raw, bidMap, askMap) => {
+    const msg = raw as {
+      type?: string;
+      result?: unknown;
+      id?: number;
+      bids?: [string, string][];
+      asks?: [string, string][];
+    };
+
+    if (msg.result !== undefined || msg.id !== undefined) return null;
+    if (msg.type !== 'book_depth') return null;
+
+    const apply = (levels: [string, string][] | undefined, map: Map<string, number>) => {
+      if (!levels) return;
+      levels.forEach(([p, a]) => {
+        const price = nadoX18ToStr(p);
+        const size = Number(BigInt(a) / X18);
+        size === 0 ? map.delete(price) : map.set(price, size);
+      });
+    };
+
+    apply(msg.bids, bidMap);
+    apply(msg.asks, askMap);
+    return { mode: 'map' };
+  },
+};
+
 // ── Aster ────────────────────────────────────────────────────────────────────
 // Binance-compatible partial depth stream. Symbol embedded in URL.
 // Levels are [price, quantity] tuples. Full snapshot each push.
@@ -427,6 +560,7 @@ export const ADAPTERS = {
   hyperliquid:  hyperliquidAdapter,
   extended:     extendedAdapter,
   aster:        asterAdapter,
+  nado:         nadoAdapter,
 } as const;
 
 export type AdapterId = keyof typeof ADAPTERS;

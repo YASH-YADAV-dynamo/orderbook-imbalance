@@ -46,6 +46,10 @@ const NATIVE_SYMBOLS: Record<string, Record<string, string>> = {
     'AVAX/USD': 'avaxusdt', 'SUI/USD': 'suiusdt', 'XRP/USD': 'xrpusdt',
     'BNB/USD': 'bnbusdt', 'HYPE/USD': 'hypeusdt',
   },
+  nado: {
+    'BTC/USD': '1', 'ETH/USD': '3', 'SOL/USD': '4',
+    'AVAX/USD': '8', 'XRP/USD': '10',
+  },
 };
 
 export function resolvePair(pairId: string, adapterId: string): string {

@@ -4,6 +4,7 @@
  */
 
 import WebSocket from 'ws';
+(globalThis as unknown as { WebSocket: typeof WebSocket }).WebSocket = WebSocket;
 import type { Level } from '../types/orderbook';
 import { computeImbalance } from '../lib/formulas';
 import {
@@ -15,6 +16,7 @@ import { ADAPTERS, type DexAdapter, type AdapterId } from '../lib/dexAdapters';
 import { DEFAULT_FORMULA_PARAMS, type FormulaType, type FormulaParams } from '../types/orderbook';
 
 const EMA_HALFLIFE_MS = 1000;
+const BATCH_WINDOW_MS = 50;
 
 function mapToLevels(map: Map<string, number>, descending: boolean): Level[] {
   return [...map.entries()]
@@ -57,6 +59,9 @@ export class WSAggregator {
   private lastEmaTMap = new Map<AdapterId, number>();
   private noiseStateMap = new Map<AdapterId, NoiseReductionState>();
   private lastNoiseTMap = new Map<AdapterId, number>();
+  private pendingDirectMap = new Map<AdapterId, { bids: Level[]; asks: Level[] }>();
+  private pendingDirtyMap = new Map<AdapterId, boolean>();
+  private batchTimerMap = new Map<AdapterId, ReturnType<typeof setTimeout>>();
 
   constructor(
     pairId: string,
@@ -70,7 +75,7 @@ export class WSAggregator {
     this.signalType = signalType;
   }
 
-  connect(): void {
+  async connect(): Promise<void> {
     for (const [id, adapter] of Object.entries(ADAPTERS) as [AdapterId, DexAdapter][]) {
       const wsSymbol = adapter.toWsSymbol(this.pairId);
       if (!wsSymbol) continue;
@@ -79,6 +84,14 @@ export class WSAggregator {
       const askMap = new Map<string, number>();
       this.bidMapMap.set(id, bidMap);
       this.askMapMap.set(id, askMap);
+
+      if (adapter.fetchInitialSnapshot) {
+        try {
+          await adapter.fetchInitialSnapshot(wsSymbol, bidMap, askMap);
+        } catch {
+          // Continue without snapshot; diffs may build up over time
+        }
+      }
       this.prevBidsMap.set(id, []);
       this.prevAsksMap.set(id, []);
       this.emaMap.set(id, 0);
@@ -112,6 +125,83 @@ export class WSAggregator {
           this.updateState(id, { connected: true });
         });
 
+        const flushBatch = (adapterId: AdapterId) => {
+          const timer = this.batchTimerMap.get(adapterId);
+          if (timer) {
+            clearTimeout(timer);
+            this.batchTimerMap.delete(adapterId);
+          }
+          if (!this.pendingDirtyMap.get(adapterId)) return;
+          this.pendingDirtyMap.set(adapterId, false);
+
+          const bidMap = this.bidMapMap.get(adapterId)!;
+          const askMap = this.askMapMap.get(adapterId)!;
+
+          let bids: Level[];
+          let asks: Level[];
+          const pending = this.pendingDirectMap.get(adapterId);
+          if (pending) {
+            bids = pending.bids;
+            asks = pending.asks;
+            this.pendingDirectMap.delete(adapterId);
+          } else {
+            bids = mapToLevels(bidMap, true);
+            asks = mapToLevels(askMap, false);
+          }
+
+          const prevBids = this.prevBidsMap.get(adapterId)!;
+          const prevAsks = this.prevAsksMap.get(adapterId)!;
+          const imbalance = computeImbalance(
+            this.formula,
+            this.params,
+            bids,
+            asks,
+            prevBids,
+            prevAsks,
+          );
+          this.prevBidsMap.set(adapterId, bids);
+          this.prevAsksMap.set(adapterId, asks);
+
+          const totalBidVol = bids.reduce((s, l) => s + parseFloat(l.a), 0);
+          const totalAskVol = asks.reduce((s, l) => s + parseFloat(l.a), 0);
+          const bestBid = bids[0] ? parseFloat(bids[0].p) : 0;
+          const bestAsk = asks[0] ? parseFloat(asks[0].p) : 0;
+          const spread = bestBid && bestAsk ? Math.max(0, bestAsk - bestBid) : 0;
+          const now = Date.now();
+
+          const lastEmaT = this.lastEmaTMap.get(adapterId) ?? 0;
+          const dt = lastEmaT ? now - lastEmaT : EMA_HALFLIFE_MS;
+          const alpha = 1 - Math.exp(-dt / EMA_HALFLIFE_MS);
+          const prevEma = this.emaMap.get(adapterId) ?? 0;
+          const ema = alpha * imbalance + (1 - alpha) * prevEma;
+          this.emaMap.set(adapterId, ema);
+          this.lastEmaTMap.set(adapterId, now);
+
+          const noiseState = this.noiseStateMap.get(adapterId)!;
+          const lastNoiseT = this.lastNoiseTMap.get(adapterId) ?? 0;
+          const tradingSignal = computeTradingSignal(
+            imbalance,
+            noiseState,
+            now,
+            lastNoiseT,
+            { emaHalfLifeMs: EMA_HALFLIFE_MS },
+          );
+          this.lastNoiseTMap.set(adapterId, now);
+
+          this.updateState(adapterId, {
+            bids,
+            asks,
+            imbalance,
+            emaImbalance: ema,
+            tradingSignal,
+            totalBidVol,
+            totalAskVol,
+            spread,
+            connected: true,
+            lastUpdate: now,
+          });
+        };
+
         ws.on('message', (data: Buffer | string) => {
           let raw: unknown;
           try {
@@ -125,67 +215,17 @@ export class WSAggregator {
           const result = adapter.processMessage(raw, bidMap, askMap);
           if (!result) return;
 
-          let bids: Level[];
-          let asks: Level[];
           if (result.mode === 'direct') {
-            bids = result.bids;
-            asks = result.asks;
-          } else {
-            bids = mapToLevels(bidMap, true);
-            asks = mapToLevels(askMap, false);
+            this.pendingDirectMap.set(id, { bids: result.bids, asks: result.asks });
           }
+          this.pendingDirtyMap.set(id, true);
 
-          const prevBids = this.prevBidsMap.get(id)!;
-          const prevAsks = this.prevAsksMap.get(id)!;
-          const imbalance = computeImbalance(
-            this.formula,
-            this.params,
-            bids,
-            asks,
-            prevBids,
-            prevAsks,
-          );
-          this.prevBidsMap.set(id, bids);
-          this.prevAsksMap.set(id, asks);
-
-          const totalBidVol = bids.reduce((s, l) => s + parseFloat(l.a), 0);
-          const totalAskVol = asks.reduce((s, l) => s + parseFloat(l.a), 0);
-          const bestBid = bids[0] ? parseFloat(bids[0].p) : 0;
-          const bestAsk = asks[0] ? parseFloat(asks[0].p) : 0;
-          const spread = bestBid && bestAsk ? Math.max(0, bestAsk - bestBid) : 0;
-          const now = Date.now();
-
-          const lastEmaT = this.lastEmaTMap.get(id) ?? 0;
-          const dt = lastEmaT ? now - lastEmaT : EMA_HALFLIFE_MS;
-          const alpha = 1 - Math.exp(-dt / EMA_HALFLIFE_MS);
-          const prevEma = this.emaMap.get(id) ?? 0;
-          const ema = alpha * imbalance + (1 - alpha) * prevEma;
-          this.emaMap.set(id, ema);
-          this.lastEmaTMap.set(id, now);
-
-          const noiseState = this.noiseStateMap.get(id)!;
-          const lastNoiseT = this.lastNoiseTMap.get(id) ?? 0;
-          const tradingSignal = computeTradingSignal(
-            imbalance,
-            noiseState,
-            now,
-            lastNoiseT,
-            { emaHalfLifeMs: EMA_HALFLIFE_MS },
-          );
-          this.lastNoiseTMap.set(id, now);
-
-          this.updateState(id, {
-            bids,
-            asks,
-            imbalance,
-            emaImbalance: ema,
-            tradingSignal,
-            totalBidVol,
-            totalAskVol,
-            spread,
-            connected: true,
-            lastUpdate: now,
-          });
+          if (!this.batchTimerMap.has(id)) {
+            this.batchTimerMap.set(
+              id,
+              setTimeout(() => flushBatch(id), BATCH_WINDOW_MS),
+            );
+          }
         });
 
         ws.on('close', () => {
@@ -209,6 +249,10 @@ export class WSAggregator {
   }
 
   disconnect(): void {
+    for (const timer of this.batchTimerMap.values()) {
+      clearTimeout(timer);
+    }
+    this.batchTimerMap.clear();
     for (const ws of this.wsMap.values()) {
       ws.close();
     }

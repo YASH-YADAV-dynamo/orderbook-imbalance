@@ -97,7 +97,7 @@ export default function DashboardLayout({
 
           <div className={`${styles.card} ${styles.gaugeCard}`}>
             <ImbalanceGauge
-              imbalance={state.imbalance}
+              imbalance={state.tradingSignal?.value ?? state.imbalance}
               symbol={`${symbol} · ${brandName}`}
             />
           </div>
@@ -107,7 +107,7 @@ export default function DashboardLayout({
               totalBidVol={state.totalBidVol}
               totalAskVol={state.totalAskVol}
               spread={state.spread}
-              imbalance={state.imbalance}
+              imbalance={state.tradingSignal?.value ?? state.imbalance}
               numBidLevels={state.bids.length}
               numAskLevels={state.asks.length}
               timestamp={state.timestamp}
