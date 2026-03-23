@@ -46,6 +46,62 @@ const NATIVE_SYMBOLS: Record<string, Record<string, string>> = {
     'AVAX/USD': 'avaxusdt', 'SUI/USD': 'suiusdt', 'XRP/USD': 'xrpusdt',
     'BNB/USD': 'bnbusdt', 'HYPE/USD': 'hypeusdt',
   },
+  /** Synthetix Info WS — wss://papi.synthetix.io/v1/ws/info, subscribe type:orderbook */
+  synthetix: {
+    'BTC/USD':  'BTC-USDT',
+    'ETH/USD':  'ETH-USDT',
+    'SOL/USD':  'SOL-USDT',
+    'AVAX/USD': 'AVAX-USDT',
+    'MATIC/USD':'MATIC-USDT',
+    'SUI/USD':  'SUI-USDT',
+    'XRP/USD':  'XRP-USDT',
+    'BNB/USD':  'BNB-USDT',
+    'HYPE/USD': 'HYPE-USDT',
+  },
+  /** dYdX v4 market IDs — wss://indexer.dydx.trade/v4/ws, channel v4_orderbook */
+  dydx: {
+    'BTC/USD':  'BTC-USD',
+    'ETH/USD':  'ETH-USD',
+    'SOL/USD':  'SOL-USD',
+    'AVAX/USD': 'AVAX-USD',
+    'SUI/USD':  'SUI-USD',
+    'XRP/USD':  'XRP-USD',
+    'BNB/USD':  'BNB-USD',
+    'HYPE/USD': 'HYPE-USD',
+  },
+  /** EdgeX contract IDs — fetched from metadata WS channel depth.{contractId}.15 */
+  edgex: {
+    'BTC/USD':  '10000001',
+    'ETH/USD':  '10000002',
+    'SOL/USD':  '10000003',
+    'AVAX/USD': '10000065',
+    'MATIC/USD':'10000008',
+    'SUI/USD':  '10000068',
+    'XRP/USD':  '10000066',
+    'BNB/USD':  '10000064',
+  },
+  /** Lighter (zkLighter) market indices — see https://mainnet.zklighter.elliot.ai/api/v1/orderBooks */
+  lighter: {
+    'BTC/USD': '1',
+    'ETH/USD': '0',
+    'SOL/USD': '2',
+    'AVAX/USD': '9',
+    'SUI/USD':  '16',
+    'XRP/USD':  '7',
+    'BNB/USD':  '25',
+  },
+  /** Orderly perp symbols: PERP_{BASE}_USDC — see https://orderly.network/docs */
+  orderly: {
+    'BTC/USD': 'PERP_BTC_USDC',
+    'ETH/USD': 'PERP_ETH_USDC',
+    'SOL/USD': 'PERP_SOL_USDC',
+    'AVAX/USD': 'PERP_AVAX_USDC',
+    'MATIC/USD': 'PERP_MATIC_USDC',
+    'SUI/USD': 'PERP_SUI_USDC',
+    'XRP/USD': 'PERP_XRP_USDC',
+    'BNB/USD': 'PERP_BNB_USDC',
+    'HYPE/USD': 'PERP_HYPE_USDC',
+  },
 };
 
 export function resolvePair(pairId: string, adapterId: string): string {

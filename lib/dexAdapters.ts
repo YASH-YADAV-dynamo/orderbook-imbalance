@@ -7,11 +7,15 @@ import { resolvePair, getPairsForAdapter } from '@/lib/pairs';
  * Returned by processMessage().
  * 'direct' — adapter provides Level[] arrays directly (e.g. snapshot-only feeds).
  * 'map'    — adapter mutated bidMap/askMap; caller converts them to Level[].
- * null     — ignore this message.
+ * 'noop'   — no orderbook update; hook sends `send` as a WS response (e.g. server-ping pong).
+ * null     — ignore this message entirely.
+ *
+ * Optional `send` on 'direct'/'map' lets adapters piggyback a response message.
  */
 export type ProcessResult =
-  | { mode: 'direct'; bids: Level[]; asks: Level[] }
-  | { mode: 'map' }
+  | { mode: 'direct'; bids: Level[]; asks: Level[]; send?: unknown }
+  | { mode: 'map';    send?: unknown }
+  | { mode: 'noop';   send: unknown }
   | null;
 
 // ── Adapter interface ───────────────────────────────────────────────────────
@@ -416,6 +420,307 @@ export const asterAdapter: DexAdapter = {
   },
 };
 
+// ── Orderly Network (EVM public WS) ───────────────────────────────────────────
+// Public COMMON_ID from Orderly's own SDK (js-sdk/packages/net/src/ws/ws.ts).
+// Server sends {"event":"ping","ts":...} application pings — must reply with pong.
+// @orderbook: full depth-100 snapshot pushed every 1 s → direct mode.
+
+const ORDERLY_PUBLIC_ID = 'OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY';
+
+export const orderlyAdapter: DexAdapter = {
+  id:               'orderly',
+  name:             'Orderly',
+  route:            '/orderly',
+  color:            '#8b5cf6',
+  supportedSymbols: getPairsForAdapter('orderly').map((p) => p.id),
+
+  toWsSymbol: (s) => resolvePair(s, 'orderly'),
+  getWsUrl:   ()  => `wss://ws-evm.orderly.org/ws/stream/${ORDERLY_PUBLIC_ID}`,
+
+  buildSubscribeMsg: (sym) => ({
+    id:    `ob-${Date.now()}`,
+    event: 'subscribe',
+    topic: `${sym}@orderbook`,
+  }),
+
+  processMessage: (raw) => {
+    const msg = raw as {
+      event?: string;
+      ts?:    number;
+      topic?: string;
+      data?:  { bids?: [number, number][]; asks?: [number, number][] };
+    };
+
+    // Reply to server keepalive pings
+    if (msg.event === 'ping') {
+      return { mode: 'noop', send: { event: 'pong', ts: msg.ts } };
+    }
+
+    if (msg.event === 'subscribe') return null;
+    if (!msg.topic?.endsWith('@orderbook') || !msg.data) return null;
+
+    const { bids = [], asks = [] } = msg.data;
+    const toLevels = (rows: [number, number][], desc: boolean): Level[] =>
+      [...rows]
+        .sort((a, b) => (desc ? b[0] - a[0] : a[0] - b[0]))
+        .slice(0, 50)
+        .map(([p, a]) => ({ p: String(p), a: String(a), n: 0 }));
+
+    return {
+      mode: 'direct',
+      bids: toLevels(bids, true),
+      asks: toLevels(asks, false),
+    };
+  },
+};
+
+// ── Synthetix ─────────────────────────────────────────────────────────────────
+// Info WS (no auth): wss://papi.synthetix.io/v1/ws/info
+// Requires Origin header — set automatically by browsers; no action needed in the hook.
+// Subscribe: {id, method:"subscribe", params:{type:"orderbook", symbol:"BTC-USDT"}}
+// Heartbeat: client sends {id,method:"ping",params:{}} every 30 s.
+// snapshot (type:"snapshot"): clear map, set absolute sizes {price, quantity}.
+// diff (type:"diff"):         update map; quantity "0" → delete.
+
+export const synthetixAdapter: DexAdapter = {
+  id:               'synthetix',
+  name:             'Synthetix',
+  route:            '/synthetix',
+  color:            '#00d1ff',
+  supportedSymbols: getPairsForAdapter('synthetix').map(p => p.id),
+
+  toWsSymbol: (s) => resolvePair(s, 'synthetix'),
+  getWsUrl:   ()  => 'wss://papi.synthetix.io/v1/ws/info',
+
+  buildSubscribeMsg: (sym) => ({
+    id:     `sub-${sym}`,
+    method: 'subscribe',
+    params: { type: 'orderbook', symbol: sym },
+  }),
+
+  pingMsg:        { id: 'heartbeat', method: 'ping', params: {} },
+  pingIntervalMs: 30_000,
+
+  processMessage: (raw, bidMap, askMap) => {
+    const msg = raw as {
+      method?: string;
+      status?: number;
+      type?:   string;
+      data?:   {
+        bids?: { price: string; quantity: string }[];
+        asks?: { price: string; quantity: string }[];
+      };
+    };
+
+    // Subscription confirmation or ping response — ignore
+    if (msg.status !== undefined || msg.method === 'pong') return null;
+    if (msg.method !== 'orderbook_depth_update' || !msg.data) return null;
+
+    const isSnap = msg.type === 'snapshot';
+
+    const applyLevels = (
+      levels: { price: string; quantity: string }[] | undefined,
+      map:    Map<string, number>,
+    ) => {
+      if (!levels) return;
+      for (const { price, quantity } of levels) {
+        const q = parseFloat(quantity);
+        if (q <= 0) map.delete(price);
+        else map.set(price, q);
+      }
+    };
+
+    if (isSnap) { bidMap.clear(); askMap.clear(); }
+    applyLevels(msg.data.bids, bidMap);
+    applyLevels(msg.data.asks, askMap);
+
+    return { mode: 'map' };
+  },
+};
+
+// ── dYdX v4 ───────────────────────────────────────────────────────────────────
+// WS: wss://indexer.dydx.trade/v4/ws, channel v4_orderbook
+// Heartbeat: protocol-level WebSocket ping frames every 30 s — handled automatically by the browser.
+// Subscribed (snapshot): bids/asks as {price, size} objects.
+// channel_data (delta): bids/asks as [price, size, offset?] tuples; size "0" → delete.
+
+export const dydxAdapter: DexAdapter = {
+  id:               'dydx',
+  name:             'dYdX',
+  route:            '/dydx',
+  color:            '#6d28d9',
+  supportedSymbols: getPairsForAdapter('dydx').map(p => p.id),
+
+  toWsSymbol: (s) => resolvePair(s, 'dydx'),
+  getWsUrl:   ()  => 'wss://indexer.dydx.trade/v4/ws',
+
+  buildSubscribeMsg: (sym) => ({
+    type:    'subscribe',
+    channel: 'v4_orderbook',
+    id:      sym,
+  }),
+
+  processMessage: (raw, bidMap, askMap) => {
+    const msg = raw as {
+      type?:     string;
+      channel?:  string;
+      contents?: {
+        bids?: ({ price: string; size: string } | [string, string, string?])[];
+        asks?: ({ price: string; size: string } | [string, string, string?])[];
+      };
+    };
+
+    if (msg.type === 'connected') return null;
+    if (msg.channel !== 'v4_orderbook') return null;
+
+    const isSnap   = msg.type === 'subscribed';
+    const isUpdate = msg.type === 'channel_data';
+    if (!isSnap && !isUpdate) return null;
+    if (!msg.contents) return null;
+
+    if (isSnap) { bidMap.clear(); askMap.clear(); }
+
+    const applyLevels = (
+      levels: ({ price: string; size: string } | [string, string, string?])[] | undefined,
+      map:    Map<string, number>,
+    ) => {
+      if (!levels) return;
+      for (const level of levels) {
+        const [price, size] = Array.isArray(level)
+          ? [level[0], level[1]]
+          : [level.price, level.size];
+        const s = parseFloat(size);
+        if (s <= 0) map.delete(price);
+        else map.set(price, s);
+      }
+    };
+
+    applyLevels(msg.contents.bids, bidMap);
+    applyLevels(msg.contents.asks, askMap);
+
+    return { mode: 'map' };
+  },
+};
+
+// ── EdgeX ─────────────────────────────────────────────────────────────────────
+// WS: wss://quote.edgex.exchange/api/v1/public/ws
+// Channel: depth.{contractId}.15  (15 levels)
+// Server sends {"type":"ping","time":"..."} — must reply {"type":"pong","time":"..."}.
+// Actual message type is "quote-event" (docs say "payload" — incorrect).
+// Levels are {price,size} objects. size="0" → delete; any positive → new absolute value.
+// Both Snapshot and Changed carry absolute sizes; Snapshot clears the map first.
+
+export const edgexAdapter: DexAdapter = {
+  id:               'edgex',
+  name:             'EdgeX',
+  route:            '/edgex',
+  color:            '#f43f5e',
+  supportedSymbols: getPairsForAdapter('edgex').map(p => p.id),
+
+  toWsSymbol: (s) => resolvePair(s, 'edgex'),
+  getWsUrl:   ()  => 'wss://quote.edgex.exchange/api/v1/public/ws',
+
+  buildSubscribeMsg: (sym) => ({
+    type:    'subscribe',
+    channel: `depth.${sym}.15`,
+  }),
+
+  processMessage: (raw, bidMap, askMap) => {
+    const msg = raw as {
+      type?:    string;
+      time?:    string;
+      content?: {
+        dataType?: string;
+        data?:     {
+          depthType?: string;
+          bids?:      { price: string; size: string }[];
+          asks?:      { price: string; size: string }[];
+        }[];
+      };
+    };
+
+    if (msg.type === 'ping' && msg.time !== undefined) {
+      return { mode: 'noop', send: { type: 'pong', time: msg.time } };
+    }
+
+    if (msg.type !== 'quote-event' || !msg.content?.data?.[0]) return null;
+
+    const entry  = msg.content.data[0];
+    const isSnap = (msg.content.dataType ?? entry.depthType ?? '').toLowerCase().includes('snapshot');
+
+    const applyLevels = (
+      levels: { price: string; size: string }[] | undefined,
+      map:    Map<string, number>,
+    ) => {
+      if (!levels) return;
+      for (const { price, size } of levels) {
+        const s = parseFloat(size);
+        if (s <= 0) map.delete(price);
+        else map.set(price, s);
+      }
+    };
+
+    if (isSnap) { bidMap.clear(); askMap.clear(); }
+    applyLevels(entry.bids, bidMap);
+    applyLevels(entry.asks, askMap);
+
+    return { mode: 'map' };
+  },
+};
+
+// ── Lighter (zkLighter) ───────────────────────────────────────────────────────
+// Single shared WS connection. Symbol → numeric market_index (from pairs.ts).
+// First message per subscription is a full snapshot; subsequent messages are
+// state-change deltas (size "0" = remove level). Uses keepalive pong every 60 s.
+
+export const lighterAdapter: DexAdapter = {
+  id:               'lighter',
+  name:             'Lighter',
+  route:            '/lighter',
+  color:            '#06b6d4',
+  supportedSymbols: getPairsForAdapter('lighter').map(p => p.id),
+
+  toWsSymbol: (s) => resolvePair(s, 'lighter'),
+  getWsUrl:   ()  => 'wss://mainnet.zklighter.elliot.ai/stream',
+
+  buildSubscribeMsg: (sym) => ({
+    type:    'subscribe',
+    channel: `order_book/${sym}`,
+  }),
+
+  pingMsg:        { type: 'pong' },
+  pingIntervalMs: 60_000,
+
+  processMessage: (raw, bidMap, askMap) => {
+    const msg = raw as {
+      type?:        string;
+      order_book?:  {
+        asks?: { price: string; size: string }[];
+        bids?: { price: string; size: string }[];
+      };
+    };
+
+    if (
+      msg.type === 'ping' ||
+      msg.type === 'pong' ||
+      msg.type?.startsWith('subscribed')
+    ) return null;
+
+    if (msg.type !== 'update/order_book' || !msg.order_book) return null;
+
+    for (const { price, size } of msg.order_book.bids ?? []) {
+      if (parseFloat(size) === 0) bidMap.delete(price);
+      else bidMap.set(price, parseFloat(size));
+    }
+    for (const { price, size } of msg.order_book.asks ?? []) {
+      if (parseFloat(size) === 0) askMap.delete(price);
+      else askMap.set(price, parseFloat(size));
+    }
+
+    return { mode: 'map' };
+  },
+};
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 
 export const ADAPTERS = {
@@ -427,6 +732,11 @@ export const ADAPTERS = {
   hyperliquid:  hyperliquidAdapter,
   extended:     extendedAdapter,
   aster:        asterAdapter,
+  orderly:      orderlyAdapter,
+  lighter:      lighterAdapter,
+  edgex:        edgexAdapter,
+  dydx:         dydxAdapter,
+  synthetix:    synthetixAdapter,
 } as const;
 
 export type AdapterId = keyof typeof ADAPTERS;

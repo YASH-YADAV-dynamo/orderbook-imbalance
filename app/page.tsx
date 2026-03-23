@@ -59,9 +59,14 @@ export default function LandingPage() {
   const hyperliquid = useDexOrderbook(ADAPTERS.hyperliquid, symbol, formula, params, undefined, refMid);
   const extended    = useDexOrderbook(ADAPTERS.extended,    symbol, formula, params, undefined, refMid);
   const aster       = useDexOrderbook(ADAPTERS.aster,       symbol, formula, params, undefined, refMid);
+  const orderly     = useDexOrderbook(ADAPTERS.orderly,     symbol, formula, params, undefined, refMid);
+  const lighter     = useDexOrderbook(ADAPTERS.lighter,     symbol, formula, params, undefined, refMid);
+  const edgex       = useDexOrderbook(ADAPTERS.edgex,       symbol, formula, params, undefined, refMid);
+  const dydx        = useDexOrderbook(ADAPTERS.dydx,        symbol, formula, params, undefined, refMid);
+  const synthetix   = useDexOrderbook(ADAPTERS.synthetix,   symbol, formula, params, undefined, refMid);
 
   const hookByAdapter = {
-    pacifica, '01': zo, hotstuff, paradex, hibachi, hyperliquid, extended, aster,
+    pacifica, '01': zo, hotstuff, paradex, hibachi, hyperliquid, extended, aster, orderly, lighter, edgex, dydx, synthetix,
   } as const;
 
   const entries: LeaderboardEntry[] = useMemo(() =>
@@ -90,7 +95,7 @@ export default function LandingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       symbol,
-      pacifica.state, zo.state, hotstuff.state, paradex.state, hibachi.state, hyperliquid.state, extended.state, aster.state,
+      pacifica.state, zo.state, hotstuff.state, paradex.state, hibachi.state, hyperliquid.state, extended.state, aster.state, orderly.state, lighter.state, edgex.state, dydx.state, synthetix.state,
     ],
   );
 

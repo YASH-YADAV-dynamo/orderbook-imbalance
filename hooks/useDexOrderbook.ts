@@ -154,7 +154,13 @@ export function useDexOrderbook(
       try { raw = JSON.parse(event.data as string); } catch { return; }
 
       const result = adapterRef.current.processMessage(raw, bidMapRef.current, askMapRef.current);
-      if (!result) return;
+
+      // Send any response message the adapter requests (e.g. pong reply to server ping)
+      if (result && 'send' in result && result.send !== undefined && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(result.send));
+      }
+
+      if (!result || result.mode === 'noop') return;
 
       let bids: Level[];
       let asks: Level[];
