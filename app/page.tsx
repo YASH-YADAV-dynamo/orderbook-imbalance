@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { FORMULA_META, FormulaType } from '@/types/orderbook';
 import { useDexOrderbook } from '@/hooks/useDexOrderbook';
 import { useBinancePrice } from '@/hooks/useBinancePrice';
@@ -113,9 +114,14 @@ export default function LandingPage() {
           <span className={styles.navDot} />
           <span className={styles.navTitle}>Orderbook Imbalance</span>
         </div>
-        <button className={styles.themeBtn} onClick={toggleDarkMode}>
-          {darkMode ? '☀ Light' : '◑ Dark'}
-        </button>
+        <div className={styles.navActions}>
+          <Link href="/arbitrage" className={styles.navArbLink}>
+            Funding arbitrage
+          </Link>
+          <button type="button" className={styles.themeBtn} onClick={toggleDarkMode}>
+            {darkMode ? '☀ Light' : '◑ Dark'}
+          </button>
+        </div>
       </nav>
 
       <div className={styles.pageHeader}>
