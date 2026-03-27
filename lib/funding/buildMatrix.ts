@@ -5,7 +5,6 @@ import type {
   FundingOkData,
 } from '@/types/funding';
 import type { AdapterId } from '@/lib/dexAdapters';
-import { ADAPTERS } from '@/lib/dexAdapters';
 import { resolvePair } from '@/lib/pairs';
 import { fetchHyperliquidBatch } from '@/lib/funding/batch/hyperliquid';
 import { fetchDydxBatch } from '@/lib/funding/batch/dydx';
@@ -21,7 +20,21 @@ import { fetchHotstuffBatch } from '@/lib/funding/batch/hotstuff';
 import { fetchHibachiBatch } from '@/lib/funding/batch/hibachi';
 import { fetchSynthetixBatch } from '@/lib/funding/batch/synthetix';
 
-export const FUNDING_ADAPTER_ORDER = Object.keys(ADAPTERS) as AdapterId[];
+export const FUNDING_ADAPTER_ORDER: AdapterId[] = [
+  'pacifica',
+  // '01',
+  'hotstuff',
+  // 'paradex',
+  // 'hibachi',
+  'hyperliquid',
+  'extended',
+  'aster',
+  'orderly',
+  'lighter',
+  'edgex',
+  // 'dydx',
+  // 'synthetix',
+];
 
 type BatchMap = Map<string, FundingOkData | { error: string }>;
 
@@ -53,12 +66,21 @@ function toCell(entry: FundingOkData | { error: string }): FundingCellResult {
 }
 
 function maxFundingSpread(cells: Record<string, FundingCellResult>): number | null {
-  const rates: number[] = [];
+  let minRate = Number.POSITIVE_INFINITY;
+  let maxRate = Number.NEGATIVE_INFINITY;
+  let count = 0;
+
   for (const c of Object.values(cells)) {
-    if (c.status === 'ok') rates.push(c.data.fundingRateHourly);
+    if (c.status !== 'ok') continue;
+    const rate = c.data.fundingRateHourly;
+    if (!Number.isFinite(rate)) continue;
+    if (rate < minRate) minRate = rate;
+    if (rate > maxRate) maxRate = rate;
+    count += 1;
   }
-  if (rates.length < 2) return null;
-  return Math.max(...rates) - Math.min(...rates);
+
+  if (count < 2) return null;
+  return maxRate - minRate;
 }
 
 /**

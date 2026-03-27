@@ -12,7 +12,6 @@ export const MARKET_PAIRS: MarketPair[] = [
   { id: 'ETH/USD',   base: 'ETH',   quote: 'USD',  type: 'perp', displayName: 'ETH / USD',   searchTerms: ['eth', 'ethereum'] },
   { id: 'SOL/USD',   base: 'SOL',   quote: 'USD',  type: 'perp', displayName: 'SOL / USD',   searchTerms: ['sol', 'solana'] },
   { id: 'AVAX/USD',  base: 'AVAX',  quote: 'USD',  type: 'perp', displayName: 'AVAX / USD',  searchTerms: ['avax', 'avalanche'] },
-  { id: 'MATIC/USD', base: 'MATIC', quote: 'USD',  type: 'perp', displayName: 'MATIC / USD', searchTerms: ['matic', 'polygon'] },
   { id: 'SUI/USD',   base: 'SUI',   quote: 'USD',  type: 'perp', displayName: 'SUI / USD',   searchTerms: ['sui'] },
   { id: 'XRP/USD',   base: 'XRP',   quote: 'USD',  type: 'perp', displayName: 'XRP / USD',   searchTerms: ['xrp', 'ripple'] },
   { id: 'BNB/USD',   base: 'BNB',   quote: 'USD',  type: 'perp', displayName: 'BNB / USD',   searchTerms: ['bnb', 'binance'] },
@@ -20,11 +19,18 @@ export const MARKET_PAIRS: MarketPair[] = [
 ];
 
 const NATIVE_SYMBOLS: Record<string, Record<string, string>> = {
-  pacifica: { 'BTC/USD': 'BTC', 'ETH/USD': 'ETH', 'SOL/USD': 'SOL', 'AVAX/USD': 'AVAX', 'MATIC/USD': 'MATIC' },
+  pacifica: {
+    'BTC/USD': 'BTC',
+    'ETH/USD': 'ETH',
+    'SOL/USD': 'SOL',
+    'AVAX/USD': 'AVAX',
+    'BNB/USD': 'BNB',
+    'HYPE/USD': 'HYPE',
+  },
   '01':     { 'BTC/USD': 'BTCUSD', 'ETH/USD': 'ETHUSD', 'SOL/USD': 'SOLUSD' },
   hotstuff: {
     'BTC/USD': 'BTC-PERP', 'ETH/USD': 'ETH-PERP', 'SOL/USD': 'SOL-PERP',
-    'XRP/USD': 'XRP-PERP', 'HYPE/USD': 'HYPE-PERP',
+    'XRP/USD': 'XRP-PERP', 'BNB/USD': 'BNB-PERP', 'HYPE/USD': 'HYPE-PERP',
   },
   paradex:  { 'BTC/USD': 'BTC-USD-PERP', 'ETH/USD': 'ETH-USD-PERP', 'SOL/USD': 'SOL-USD-PERP' },
   hibachi:  {
@@ -34,12 +40,12 @@ const NATIVE_SYMBOLS: Record<string, Record<string, string>> = {
   },
   hyperliquid: {
     'BTC/USD': 'BTC', 'ETH/USD': 'ETH', 'SOL/USD': 'SOL', 'AVAX/USD': 'AVAX',
-    'MATIC/USD': 'MATIC', 'SUI/USD': 'SUI', 'XRP/USD': 'XRP', 'BNB/USD': 'BNB',
+    'SUI/USD': 'SUI', 'XRP/USD': 'XRP', 'BNB/USD': 'BNB',
     'HYPE/USD': 'HYPE',
   },
   extended: {
     'BTC/USD': 'BTC-USD', 'ETH/USD': 'ETH-USD', 'SOL/USD': 'SOL-USD',
-    'AVAX/USD': 'AVAX-USD',
+    'AVAX/USD': 'AVAX-USD', 'BNB/USD': 'BNB-USD', 'HYPE/USD': 'HYPE-USD',
   },
   aster: {
     'BTC/USD': 'btcusdt', 'ETH/USD': 'ethusdt', 'SOL/USD': 'solusdt',
@@ -52,7 +58,6 @@ const NATIVE_SYMBOLS: Record<string, Record<string, string>> = {
     'ETH/USD':  'ETH-USDT',
     'SOL/USD':  'SOL-USDT',
     'AVAX/USD': 'AVAX-USDT',
-    'MATIC/USD':'MATIC-USDT',
     'SUI/USD':  'SUI-USDT',
     'XRP/USD':  'XRP-USDT',
     'BNB/USD':  'BNB-USDT',
@@ -75,10 +80,10 @@ const NATIVE_SYMBOLS: Record<string, Record<string, string>> = {
     'ETH/USD':  '10000002',
     'SOL/USD':  '10000003',
     'AVAX/USD': '10000065',
-    'MATIC/USD':'10000008',
     'SUI/USD':  '10000068',
     'XRP/USD':  '10000066',
     'BNB/USD':  '10000064',
+    'HYPE/USD': '10000072',
   },
   /** Lighter (zkLighter) market indices — see https://mainnet.zklighter.elliot.ai/api/v1/orderBooks */
   lighter: {
@@ -89,6 +94,7 @@ const NATIVE_SYMBOLS: Record<string, Record<string, string>> = {
     'SUI/USD':  '16',
     'XRP/USD':  '7',
     'BNB/USD':  '25',
+    'HYPE/USD': '24',
   },
   /** Orderly perp symbols: PERP_{BASE}_USDC — see https://orderly.network/docs */
   orderly: {
@@ -96,7 +102,6 @@ const NATIVE_SYMBOLS: Record<string, Record<string, string>> = {
     'ETH/USD': 'PERP_ETH_USDC',
     'SOL/USD': 'PERP_SOL_USDC',
     'AVAX/USD': 'PERP_AVAX_USDC',
-    'MATIC/USD': 'PERP_MATIC_USDC',
     'SUI/USD': 'PERP_SUI_USDC',
     'XRP/USD': 'PERP_XRP_USDC',
     'BNB/USD': 'PERP_BNB_USDC',

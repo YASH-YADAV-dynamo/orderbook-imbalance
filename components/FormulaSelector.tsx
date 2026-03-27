@@ -6,6 +6,7 @@ import styles from './FormulaSelector.module.css';
 const FORMULA_ORDER: FormulaType[] = [
   'distanceWeighted',
   'nearMid',
+  'classic',
   'ofi',
   'microprice',
   'powerLaw',
@@ -42,7 +43,7 @@ export default function FormulaSelector({
         ))}
       </select>
 
-      {/* Lambda slider — formula 1 */}
+      {/* Lambda slider — distanceWeighted */}
       {formula === 'distanceWeighted' && (
         <div className={styles.paramGroup}>
           <label className={styles.paramLabel}>Decay Rate (λ)</label>
@@ -61,7 +62,7 @@ export default function FormulaSelector({
         </div>
       )}
 
-      {/* xPct slider — formula 2 */}
+      {/* xPct slider — nearMid */}
       {formula === 'nearMid' && (
         <div className={styles.paramGroup}>
           <label className={styles.paramLabel}>Band Width (x%)</label>
@@ -80,7 +81,7 @@ export default function FormulaSelector({
         </div>
       )}
 
-      {/* Alpha slider — formula 5 */}
+      {/* Alpha slider — powerLaw */}
       {formula === 'powerLaw' && (
         <div className={styles.paramGroup}>
           <label className={styles.paramLabel}>Exponent (α)</label>

@@ -9,12 +9,7 @@ import { parseFundingRate } from '@/lib/funding/batch/helpers';
 
 const ADAPTER = 'pacifica' as const satisfies AdapterId;
 
-const SOURCE = 'Pacifica GET /v1/markets → fundingRate, nextFundingTime (ms).';
-
-function nativeListing(pairId: string): string {
-  const base = pairId.split('/')[0] ?? '';
-  return `${base}-PERP`;
-}
+const SOURCE = 'Pacifica GET /api/v1/info → data[].funding_rate (next_funding_rate fallback).';
 
 export async function fetchPacificaBatch(
   wantedPairIds: Set<string>,
@@ -23,7 +18,7 @@ export async function fetchPacificaBatch(
 
   let res: Response;
   try {
-    res = await fetch('https://api.pacifica.fi/v1/markets', { cache: 'no-store' });
+    res = await fetch('https://api.pacifica.fi/api/v1/info', { cache: 'no-store' });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     for (const id of wantedPairIds) out.set(id, { error: msg });
@@ -50,13 +45,32 @@ export async function fetchPacificaBatch(
     return out;
   }
 
-  const bySym = new Map<string, { fundingRate?: string; nextFundingTime?: number }>();
+  const bySym = new Map<
+    string,
+    {
+      funding_rate?: string;
+      next_funding_rate?: string;
+      fundingRate?: string;
+      nextFundingRate?: string;
+      nextFundingTime?: number | string;
+    }
+  >();
   for (const row of list) {
     if (!row || typeof row !== 'object') continue;
-    const r = row as { symbol?: string; fundingRate?: string; nextFundingTime?: number };
+    const r = row as {
+      symbol?: string;
+      funding_rate?: string;
+      next_funding_rate?: string;
+      fundingRate?: string;
+      nextFundingRate?: string;
+      nextFundingTime?: number | string;
+    };
     if (typeof r.symbol === 'string') {
       bySym.set(r.symbol.toUpperCase(), {
+        funding_rate: r.funding_rate,
+        next_funding_rate: r.next_funding_rate,
         fundingRate: r.fundingRate,
+        nextFundingRate: r.nextFundingRate,
         nextFundingTime: r.nextFundingTime,
       });
     }
@@ -67,20 +81,33 @@ export async function fetchPacificaBatch(
       out.set(pairId, { error: 'unsupported_pair' });
       continue;
     }
-    const key = nativeListing(pairId).toUpperCase();
+    const key = resolvePair(pairId, ADAPTER).toUpperCase();
     const row = bySym.get(key);
     if (!row) {
       out.set(pairId, { error: 'symbol not in markets' });
       continue;
     }
-    const fundingRateHourly = parseFundingRate(row.fundingRate);
+
+    const fundingRateRaw =
+      row.funding_rate ??
+      row.fundingRate ??
+      row.next_funding_rate ??
+      row.nextFundingRate;
+
+    const fundingRateHourly = parseFundingRate(fundingRateRaw);
     if (fundingRateHourly === null) {
-      out.set(pairId, { error: 'no fundingRate' });
+      out.set(pairId, { error: 'no funding rate fields' });
       continue;
     }
     let nextMs = nextUtcHourMs();
-    if (typeof row.nextFundingTime === 'number' && row.nextFundingTime > Date.now()) {
-      nextMs = row.nextFundingTime;
+    const nft =
+      typeof row.nextFundingTime === 'number'
+        ? row.nextFundingTime
+        : typeof row.nextFundingTime === 'string'
+          ? parseFloat(row.nextFundingTime)
+          : Number.NaN;
+    if (Number.isFinite(nft) && nft > Date.now()) {
+      nextMs = nft;
     }
 
     out.set(pairId, {

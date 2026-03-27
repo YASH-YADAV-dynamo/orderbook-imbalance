@@ -3,10 +3,15 @@
    ═══════════════════════════════════════════════════════ */
 
 .page {
-  min-height: 100vh;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
   background: var(--bg);
   color: var(--fg);
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ── Navigation ─────────────────────────────────────────────────────── */
@@ -21,6 +26,7 @@
   height: 48px;
   background: var(--bg-1);
   border-bottom: 1px solid var(--grid);
+  flex-shrink: 0;
 }
 
 .navBrand {
@@ -83,73 +89,39 @@
   border-color: var(--fg-muted);
 }
 
-/* ── Page header ────────────────────────────────────────────────────── */
-.pageHeader {
-  border-bottom: 1px solid var(--grid);
-  background: var(--bg-1);
+.main {
+  flex: 1 1 0%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 20px 24px 24px;
 }
 
-.pageHeaderInner {
-  padding: 36px 32px 32px;
-  max-width: 1280px;
-  margin: 0 auto;
+.contentGrid {
   display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
-  grid-template-areas:
-    'title integrate'
-    'desc  integrate';
-  gap: 8px 16px;
-  align-items: start;
-}
-
-.pageTitle {
-  grid-area: title;
-  font-size: clamp(26px, 3.5vw, 40px);
-  font-weight: 600;
-  letter-spacing: -0.025em;
-  line-height: 1.1;
-  color: var(--fg);
-}
-
-.pageDesc {
-  grid-area: desc;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--fg-muted);
-  max-width: 560px;
-  letter-spacing: 0.01em;
-}
-
-.integrateWrap {
-  grid-area: integrate;
-  align-self: center;
-}
-
-@media (max-width: 640px) {
-  .pageHeaderInner {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
-    grid-template-areas:
-      'title'
-      'desc'
-      'integrate';
-  }
-}
-
-/* ── Comparison Widget ───────────────────────────────────────────────── */
-.widgetSection {
-  padding: 32px 32px 56px;
-  max-width: 1280px;
-  margin: 0 auto;
+  grid-template-columns: minmax(360px, 430px) minmax(0, 1fr);
+  gap: 16px;
+  flex: 1 1 0%;
+  min-height: 0;
 }
 
 /* The whole widget (title + controls + table) in one bordered box */
 .widgetOuter {
+  flex: 1 1 0%;
+  min-height: 0;
+  width: 100%;
   border: 1px solid var(--grid);
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg-1);
+  display: flex;
+  flex-direction: column;
 }
 
 /* Widget title bar */
@@ -554,12 +526,20 @@
    Responsive
    ════════════════════════════════════════════════════════ */
 
+@media (max-width: 1200px) {
+  .contentGrid {
+    grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
 @media (max-width: 900px) {
   .nav { padding: 0 20px; }
-
-  .pageHeaderInner { padding: 28px 20px 24px; }
-
-  .widgetSection { padding: 24px 20px 48px; }
+  .main { padding: 16px 20px 20px; }
+  .contentGrid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 
   .widgetControls { gap: 0; row-gap: 10px; }
 
@@ -577,8 +557,7 @@
 
 @media (max-width: 540px) {
   .nav { padding: 0 14px; }
-  .pageHeaderInner { padding: 22px 14px 20px; }
-  .widgetSection { padding: 20px 14px 40px; }
+  .main { padding: 12px 14px 16px; }
   .blogInner { padding: 36px 14px; }
   .footer { padding: 14px; }
 }

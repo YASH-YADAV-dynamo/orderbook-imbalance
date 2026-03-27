@@ -2,14 +2,30 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ADAPTERS } from '@/lib/dexAdapters';
+import type { AdapterId } from '@/lib/dexAdapters';
 import { FUNDING_ADAPTER_ORDER } from '@/lib/funding/buildMatrix';
 import { FUNDING_RATE_DEADBAND } from '@/lib/funding/constants';
+import { MARKET_PAIRS } from '@/lib/pairs';
 import type { FundingApiResponse, FundingCellResult } from '@/types/funding';
+import type { TradeIntent } from '@/types/trading';
+import TradeExecutionModal from '@/components/TradeExecutionModal';
 import styles from './FundingScreener.module.css';
 
 const DEX_ICON = 36;
 
 const REFRESH_MS = 45_000;
+const ARBITRAGE_SYMBOLS = MARKET_PAIRS.map(p => p.id);
+
+function shouldRenderDash(cell: FundingCellResult): boolean {
+  if (cell.status !== 'error') return false;
+  const msg = cell.message.toLowerCase();
+  return (
+    cell.code === 'unsupported_pair' ||
+    msg.includes('pair not listed on this venue') ||
+    msg.includes('symbol not in markets') ||
+    msg.includes('market not listed')
+  );
+}
 
 function fmtCountdown(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return '0:00';
@@ -29,14 +45,26 @@ function rateSign(rate: number): 'pos' | 'neg' | 'zero' {
 }
 
 function FundingCell({
+  adapterId,
+  symbol,
   cell,
-  tick,
+  nowMs,
+  onSignalClick,
 }: {
+  adapterId: AdapterId;
+  symbol: string;
   cell: FundingCellResult;
-  tick: number;
+  nowMs: number;
+  onSignalClick: (intent: TradeIntent) => void;
 }) {
-  void tick;
   if (cell.status === 'error') {
+    if (shouldRenderDash(cell)) {
+      return (
+        <div className={styles.cellInner}>
+          <span className={styles.dash}>—</span>
+        </div>
+      );
+    }
     return (
       <div className={styles.cellInner}>
         <span className={styles.err} title={`[${cell.code}] ${cell.message}`}>
@@ -47,8 +75,32 @@ function FundingCell({
   }
 
   const { data } = cell;
-  const rem = data.nextFundingMs - Date.now();
+  const rem = data.nextFundingMs - nowMs;
   const tag = data.tag;
+  const actionableExchange = adapterId === 'pacifica' || adapterId === 'hyperliquid'
+    ? adapterId
+    : null;
+
+  const signalButton = tag === 'buy' || tag === 'sell'
+    ? (
+      <button
+        type="button"
+        className={`${styles.pill} ${tag === 'buy' ? styles.pillBuy : styles.pillSell} ${actionableExchange ? styles.pillAction : ''}`}
+        disabled={!actionableExchange}
+        title={actionableExchange ? `Send ${tag.toUpperCase()} intent for ${symbol} on ${ADAPTERS[actionableExchange].name}` : 'Execution not enabled for this venue yet'}
+        onClick={() => {
+          if (!actionableExchange) return;
+          onSignalClick({
+            exchange: actionableExchange,
+            symbol,
+            side: tag,
+          });
+        }}
+      >
+        {tag.toUpperCase()}
+      </button>
+    )
+    : null;
 
   return (
     <div
@@ -65,8 +117,7 @@ function FundingCell({
       <span className={styles.cd} title="Time until next funding settlement">
         {fmtCountdown(rem)}
       </span>
-      {tag === 'buy' && <span className={`${styles.pill} ${styles.pillBuy}`}>BUY</span>}
-      {tag === 'sell' && <span className={`${styles.pill} ${styles.pillSell}`}>SELL</span>}
+      {signalButton}
     </div>
   );
 }
@@ -80,12 +131,16 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
   const [data, setData] = useState<FundingApiResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tick, setTick] = useState(0);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [tradeIntent, setTradeIntent] = useState<TradeIntent | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const res = await fetch('/api/funding', { cache: 'no-store' });
+      const params = new URLSearchParams({
+        symbols: ARBITRAGE_SYMBOLS.join(','),
+      });
+      const res = await fetch(`/api/funding?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         setLoadError(j.error ?? `HTTP ${res.status}`);
@@ -110,7 +165,7 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
   }, [load]);
 
   useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 1000);
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -197,7 +252,13 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
                 </td>
                 {FUNDING_ADAPTER_ORDER.map(id => (
                   <td key={id} className={`${styles.td} ${styles.cell}`}>
-                    <FundingCell cell={row.cells[id]} tick={tick} />
+                    <FundingCell
+                      adapterId={id}
+                      symbol={row.symbol}
+                      cell={row.cells[id]}
+                      nowMs={nowMs}
+                      onSignalClick={setTradeIntent}
+                    />
                   </td>
                 ))}
               </tr>
@@ -205,6 +266,11 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
           </tbody>
         </table>
       </div>
+
+      <TradeExecutionModal
+        intent={tradeIntent}
+        onClose={() => setTradeIntent(null)}
+      />
     </div>
   );
 }

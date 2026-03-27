@@ -49,8 +49,22 @@ html, body {
   font-family: var(--font-mono);
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
-  /* overflow controlled per-page — dashboards use height:100vh on .shell */
+  /* overflow controlled by route-level shells */
   transition: background 0.25s ease, color 0.25s ease;
+}
+
+.appRoot {
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.appMain {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Thin scrollbar */

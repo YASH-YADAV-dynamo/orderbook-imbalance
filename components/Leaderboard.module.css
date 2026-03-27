@@ -2,8 +2,18 @@
    Leaderboard — Notion-style table
    ═══════════════════════════════════════════════════════ */
 
+.tableScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+}
+
 .table {
-  width: 100%;
+  min-width: 100%;
+  width: max-content;
   background: var(--bg-1);
 }
 
@@ -16,6 +26,8 @@
   padding: 0 20px;
   gap: 0;
   min-width: 0;
+  width: max-content;
+  min-width: 100%;
 }
 
 /* ── Header row ── */
@@ -36,7 +48,9 @@
 /* ── Body container (animated rows live here) ── */
 .body {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+  width: max-content;
+  min-width: 100%;
 }
 
 /* ── Data rows ── */
@@ -44,7 +58,7 @@
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
+  right: auto;
   height: 72px; /* must match ROW_H in TSX */
   border-bottom: 1px solid var(--grid);
   background: var(--bg-1);
@@ -231,6 +245,8 @@
    ════════════════════════════════════════════════════════ */
 
 @media (max-width: 1000px) {
+  .table { min-width: 820px; }
+
   .row,
   .dataRow {
     grid-template-columns: 32px 160px 110px 140px 78px 78px 110px 64px;
@@ -239,6 +255,8 @@
 }
 
 @media (max-width: 768px) {
+  .table { min-width: 700px; }
+
   .row,
   .dataRow {
     /* Narrow everything, keep all columns */
@@ -248,27 +266,21 @@
 }
 
 @media (max-width: 640px) {
+  .table { min-width: 628px; }
+
   .row,
   .dataRow {
-    /* Drop Ask Vol (col 6) */
-    grid-template-columns: 28px 1fr 90px 110px 68px 0px 90px 52px;
+    grid-template-columns: 26px 124px 90px 108px 68px 68px 90px 54px;
     padding: 0 12px;
   }
-
-  .volAskCol { display: none; }
-  /* nth-child(6) = 6th .col = Ask Vol header */
-  .headRow .col:nth-child(6) { display: none; }
 }
 
 @media (max-width: 480px) {
+  .table { min-width: 588px; }
+
   .row,
   .dataRow {
-    /* Drop Direction (col 4) and both Vol cols (5, 6) */
-    grid-template-columns: 24px 1fr 84px 0px 0px 0px 84px 48px;
+    grid-template-columns: 24px 114px 86px 100px 64px 64px 86px 50px;
+    padding: 0 10px;
   }
-
-  .dirCol { display: none; }
-  .volCol { display: none; }
-  .headRow .col:nth-child(4),
-  .headRow .col:nth-child(5) { display: none; }
 }

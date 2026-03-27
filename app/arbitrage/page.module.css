@@ -1,9 +1,6 @@
 .page {
-  /* Lock viewport height so inner flex + overflow can scroll vertically */
-  height: 100vh;
-  height: 100dvh;
-  max-height: 100vh;
-  max-height: 100dvh;
+  flex: 1 1 auto;
+  min-height: 0;
   min-width: 0;
   width: 100%;
   background: var(--bg);
@@ -98,5 +95,17 @@
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  overflow: hidden;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 640px) {
+  .nav {
+    padding: 0 12px;
+  }
+
+  .homeLink {
+    font-size: 10px;
+  }
 }

@@ -22,6 +22,11 @@ function lerp(a: number, b: number, t: number): number {
   return Math.abs(b - a) < EPSILON ? b : a + (b - a) * t;
 }
 
+function clampUnit(x: number): number {
+  if (!Number.isFinite(x)) return 0;
+  return Math.max(-1, Math.min(1, x));
+}
+
 export function useSmoothedLeaderboard(
   entries: LeaderboardEntry[],
   opts?: Options,
@@ -48,7 +53,7 @@ export function useSmoothedLeaderboard(
     const candidate = [...items]
       .sort((a, b) => {
         if (a.connected !== b.connected) return a.connected ? -1 : 1;
-        return Math.abs(b.emaImbalance) - Math.abs(a.emaImbalance);
+        return Math.abs(clampUnit(b.emaImbalance)) - Math.abs(clampUnit(a.emaImbalance));
       })
       .map(e => e.id);
 
@@ -66,7 +71,9 @@ export function useSmoothedLeaderboard(
       const cEntry  = byId.get(cId);
       if (!curAtI || !cEntry) { return candidate; }
 
-      const diff = Math.abs(Math.abs(cEntry.emaImbalance) - Math.abs(curAtI.emaImbalance));
+      const diff = Math.abs(
+        Math.abs(clampUnit(cEntry.emaImbalance)) - Math.abs(clampUnit(curAtI.emaImbalance)),
+      );
       if (diff > hyst || curAtI.connected !== cEntry.connected) {
         merged.splice(curIdx, 1);
         merged.splice(i, 0, cId);
@@ -82,7 +89,6 @@ export function useSmoothedLeaderboard(
       if (!running) return;
       const now  = Date.now();
       const items = entriesRef.current;
-      const byId  = new Map(items.map(e => [e.id, e]));
 
       // Check for connection state changes (immediate re-rank)
       let connChanged = false;
@@ -112,8 +118,10 @@ export function useSmoothedLeaderboard(
       for (const entry of items) {
         const prev = displayRef.current.get(entry.id);
         const resetNeeded = !prev || !entry.connected;
+        const targetImb = clampUnit(entry.imbalance);
+        const prevImb = prev ? clampUnit(prev.imb) : targetImb;
 
-        const dImb = resetNeeded ? entry.imbalance : lerp(prev.imb, entry.imbalance, speed);
+        const dImb = clampUnit(resetNeeded ? targetImb : lerp(prevImb, targetImb, speed));
         const dBid = resetNeeded ? entry.bidVol    : lerp(prev.bid, entry.bidVol, speed);
         const dAsk = resetNeeded ? entry.askVol    : lerp(prev.ask, entry.askVol, speed);
 
@@ -147,7 +155,7 @@ export function useSmoothedLeaderboard(
       if (document.visibilityState === 'visible') {
         for (const e of entriesRef.current) {
           displayRef.current.set(e.id, {
-            imb: e.imbalance,
+            imb: clampUnit(e.imbalance),
             bid: e.bidVol,
             ask: e.askVol,
           });

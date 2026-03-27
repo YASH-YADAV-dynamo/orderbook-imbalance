@@ -15,7 +15,7 @@ const Leaderboard    = dynamic(() => import('@/components/Leaderboard'),    { ss
 const MarketSelector = dynamic(() => import('@/components/MarketSelector'), { ssr: false });
 
 const FORMULA_NAMES: FormulaType[] = [
-  'distanceWeighted', 'nearMid', 'ofi', 'microprice', 'powerLaw',
+  'distanceWeighted', 'nearMid', 'classic', 'ofi', 'microprice', 'powerLaw',
 ];
 
 const ALL_PAIRS = getAllPairs();

@@ -65,6 +65,7 @@ export type AggLevel = 1 | 10 | 100 | 1000 | 10000;
 export type FormulaType =
   | 'distanceWeighted'
   | 'nearMid'
+  | 'classic'
   | 'ofi'
   | 'microprice'
   | 'powerLaw';
@@ -96,6 +97,11 @@ export const FORMULA_META: Record<
     short: 'NM',
     description: 'Only levels within x% of mid price. Ignores far levels.',
     paramKey: 'xPct',
+  },
+  classic: {
+    label: 'Classic Imbalance',
+    short: 'CI',
+    description: 'Standard depth ratio: (ΣBid − ΣAsk) / (ΣBid + ΣAsk).',
   },
   ofi: {
     label: 'Order Flow Imbalance',

@@ -238,7 +238,7 @@
 }
 
 .maxArb {
-  text-align: right;
+  text-align: left;
   color: var(--bid);
 }
 
@@ -299,6 +299,7 @@
   letter-spacing: 0.08em;
   padding: 3px 8px;
   border-radius: 6px;
+  border: none;
 }
 
 .pillBuy {
@@ -311,6 +312,15 @@
   color: var(--ask);
 }
 
+.pillAction {
+  cursor: pointer;
+}
+
+.pillAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .err {
   display: inline-flex;
   align-items: center;
@@ -321,6 +331,16 @@
   letter-spacing: 0.1em;
   color: var(--ask);
   cursor: help;
+}
+
+.dash {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--fg-muted);
 }
 
 .loading {

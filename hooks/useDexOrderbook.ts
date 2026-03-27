@@ -21,6 +21,11 @@ const MAX_RETRIES          = 5;
 const HISTORY_SAMPLE_MS    = 200;   // max 5 history points/sec
 const EMA_HALFLIFE_MS      = 1000;  // ~1 s smoothing for fair comparison
 
+function clampUnit(x: number): number {
+  if (!Number.isFinite(x)) return 0;
+  return Math.max(-1, Math.min(1, x));
+}
+
 function mapToLevels(map: Map<string, number>, descending: boolean): Level[] {
   return [...map.entries()]
     .sort(([a], [b]) =>
@@ -57,6 +62,7 @@ export function useDexOrderbook(
 ) {
   const [state,   setState]   = useState<OrderbookState>(() => defaultState(displaySymbol));
   const [history, setHistory] = useState<HistoryPoint[]>([]);
+  const connectionRef = useRef({ connected: false, connecting: false, error: null as string | null });
 
   const wsRef         = useRef<WebSocket | null>(null);
   const pingRef       = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -90,6 +96,14 @@ export function useDexOrderbook(
   aggRef.current      = aggLevel;
   refMidRef.current   = referenceMid;
 
+  useEffect(() => {
+    connectionRef.current = {
+      connected: state.connected,
+      connecting: state.connecting,
+      error: state.error,
+    };
+  }, [state.connected, state.connecting, state.error]);
+
   const disconnect = useCallback(() => {
     if (pingRef.current)       clearInterval(pingRef.current);
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
@@ -108,6 +122,62 @@ export function useDexOrderbook(
 
   // connectRef keeps onclose always calling the latest connect (avoids stale closure)
   const connectRef = useRef<() => void>(() => {});
+
+  const computeSnapshot = useCallback((
+    bids: Level[],
+    asks: Level[],
+    now: number,
+    useCurrentAsPrevious = false,
+  ): OrderbookState => {
+    const prevBids = useCurrentAsPrevious ? bids : prevBidsRef.current;
+    const prevAsks = useCurrentAsPrevious ? asks : prevAsksRef.current;
+
+    const imbalance = clampUnit(computeImbalance(
+      formulaRef.current,
+      paramsRef.current,
+      bids,
+      asks,
+      prevBids,
+      prevAsks,
+      refMidRef.current,
+    ));
+
+    const totalBidVol = bids.reduce((s, l) => s + parseFloat(l.a), 0);
+    const totalAskVol = asks.reduce((s, l) => s + parseFloat(l.a), 0);
+    const bestBid = bids[0] ? parseFloat(bids[0].p) : 0;
+    const bestAsk = asks[0] ? parseFloat(asks[0].p) : 0;
+    const spread = bestBid && bestAsk ? Math.max(0, bestAsk - bestBid) : 0;
+
+    const dt = lastEmaTRef.current ? now - lastEmaTRef.current : EMA_HALFLIFE_MS;
+    const alpha = 1 - Math.exp(-dt / EMA_HALFLIFE_MS);
+    emaRef.current = clampUnit(alpha * imbalance + (1 - alpha) * emaRef.current);
+    lastEmaTRef.current = now;
+
+    const tradingSignal = computeTradingSignal(
+      imbalance,
+      noiseStateRef.current,
+      now,
+      lastNoiseTRef.current,
+      { emaHalfLifeMs: EMA_HALFLIFE_MS },
+    );
+    lastNoiseTRef.current = now;
+
+    return {
+      bids,
+      asks,
+      symbol: symbolRef.current,
+      timestamp: now,
+      imbalance,
+      emaImbalance: emaRef.current,
+      tradingSignal,
+      totalBidVol,
+      totalAskVol,
+      spread,
+      connected: connectionRef.current.connected,
+      connecting: connectionRef.current.connecting,
+      error: connectionRef.current.error,
+    };
+  }, []);
 
   const connect = useCallback(() => {
     const ad  = adapterRef.current;
@@ -172,44 +242,15 @@ export function useDexOrderbook(
         asks = mapToLevels(askMapRef.current, false);
       }
 
-      const imbalance = computeImbalance(
-        formulaRef.current, paramsRef.current,
-        bids, asks, prevBidsRef.current, prevAsksRef.current,
-        refMidRef.current,
-      );
+      const now = Date.now();
+      latestRef.current = {
+        ...computeSnapshot(bids, asks, now),
+        connected: true,
+        connecting: false,
+        error: null,
+      };
       prevBidsRef.current = bids;
       prevAsksRef.current = asks;
-
-      const totalBidVol = bids.reduce((s, l) => s + parseFloat(l.a), 0);
-      const totalAskVol = asks.reduce((s, l) => s + parseFloat(l.a), 0);
-      const bestBid     = bids[0] ? parseFloat(bids[0].p) : 0;
-      const bestAsk     = asks[0] ? parseFloat(asks[0].p) : 0;
-      const spread      = bestBid && bestAsk ? Math.max(0, bestAsk - bestBid) : 0;
-      const now         = Date.now();
-
-      // Time-corrected EMA: same effective window regardless of message rate
-      const dt    = lastEmaTRef.current ? now - lastEmaTRef.current : EMA_HALFLIFE_MS;
-      const alpha = 1 - Math.exp(-dt / EMA_HALFLIFE_MS);
-      emaRef.current    = alpha * imbalance + (1 - alpha) * emaRef.current;
-      lastEmaTRef.current = now;
-
-      // 5-stage noise reduction pipeline
-      const tradingSignal = computeTradingSignal(
-        imbalance,
-        noiseStateRef.current,
-        now,
-        lastNoiseTRef.current,
-        { emaHalfLifeMs: EMA_HALFLIFE_MS },
-      );
-      lastNoiseTRef.current = now;
-
-      latestRef.current = {
-        bids, asks, symbol: sym, timestamp: now,
-        imbalance, emaImbalance: emaRef.current,
-        tradingSignal,
-        totalBidVol, totalAskVol, spread,
-        connected: true, connecting: false, error: null,
-      };
 
       // Coalesce into a single render per animation frame
       if (!rafIdRef.current) {
@@ -246,7 +287,7 @@ export function useDexOrderbook(
         setState(s => ({ ...s, error: 'Max reconnect attempts reached' }));
       }
     };
-  }, [disconnect]);
+  }, [disconnect, computeSnapshot]);
 
   connectRef.current = connect;
 
@@ -259,6 +300,28 @@ export function useDexOrderbook(
     // formula/params are handled via refs and don't need reconnects.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adapter.id, displaySymbol, aggLevel]);
+
+  useEffect(() => {
+    const bids = prevBidsRef.current;
+    const asks = prevAsksRef.current;
+    if (!bids.length && !asks.length) return;
+
+    const now = Date.now();
+    const snap = computeSnapshot(bids, asks, now, true);
+    latestRef.current = snap;
+    setState(prev => ({ ...prev, ...snap }));
+
+    setHistory(prev => {
+      const next = prev.filter(p => p.t >= now - HISTORY_DURATION_MS);
+      next.push({
+        t: now,
+        imbalance: snap.imbalance,
+        bidVol: snap.totalBidVol,
+        askVol: snap.totalAskVol,
+      });
+      return next;
+    });
+  }, [formula, params, referenceMid, computeSnapshot]);
 
   return { state, history, reconnect: connect };
 }
