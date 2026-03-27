@@ -1,0 +1,62 @@
+export type ExecutionExchange = 'pacifica' | 'hyperliquid';
+export type ExecutionSide = 'buy' | 'sell';
+
+export interface TradeIntent {
+  exchange: ExecutionExchange;
+  symbol: string;
+  side: ExecutionSide;
+}
+
+export interface AccountStatusRequest {
+  exchange: ExecutionExchange;
+  walletAddress: string;
+}
+
+export interface AccountStatusResponse {
+  hasExchangeAccount: boolean;
+  hasApiAgent: boolean;
+  apiAgentId?: string;
+  canTrade: boolean;
+  createAccountUrl?: string;
+  connectAccountUrl?: string;
+  message?: string;
+}
+
+export interface AgentChallengeRequest {
+  exchange: ExecutionExchange;
+  walletAddress: string;
+}
+
+export interface AgentChallengeResponse {
+  challengeId: string;
+  message: string;
+  expiresAt?: number;
+}
+
+export interface AgentRegisterRequest {
+  exchange: ExecutionExchange;
+  walletAddress: string;
+  challengeId: string;
+  signature: string;
+}
+
+export interface AgentRegisterResponse {
+  agentId: string;
+  status: 'active' | 'pending';
+  message?: string;
+}
+
+export interface PlaceIntentRequest {
+  exchange: ExecutionExchange;
+  walletAddress: string;
+  symbol: string;
+  side: ExecutionSide;
+  sizeUsd: string;
+  apiAgentId?: string;
+}
+
+export interface PlaceIntentResponse {
+  intentId: string;
+  status: 'accepted' | 'queued' | 'rejected';
+  message?: string;
+}

@@ -24,6 +24,11 @@ export interface LeaderboardEntry {
 
 const ROW_H = 72;
 
+function clampUnit(x: number): number {
+  if (!Number.isFinite(x)) return 0;
+  return Math.max(-1, Math.min(1, x));
+}
+
 function fv(n: number): string {
   if (!n) return '—';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
@@ -65,80 +70,83 @@ export default function Leaderboard({ entries }: { entries: LeaderboardEntry[] }
   }
 
   return (
-    <div className={styles.table}>
-      <div className={`${styles.row} ${styles.headRow}`}>
-        <div className={styles.col}>#</div>
-        <div className={styles.col}>Exchange</div>
-        <div className={`${styles.col} ${styles.numCol}`}>Imbalance</div>
-        <div className={styles.col}>Direction</div>
-        <div className={`${styles.col} ${styles.numCol}`}>Bid Vol</div>
-        <div className={`${styles.col} ${styles.numCol}`}>Ask Vol</div>
-        <div className={styles.col}>Status</div>
-        <div className={styles.col} />
-      </div>
+    <div className={styles.tableScroll}>
+      <div className={styles.table}>
+        <div className={`${styles.row} ${styles.headRow}`}>
+          <div className={styles.col}>#</div>
+          <div className={styles.col}>Exchange</div>
+          <div className={`${styles.col} ${styles.numCol}`}>Imbalance (Dec)</div>
+          <div className={styles.col}>Direction</div>
+          <div className={`${styles.col} ${styles.numCol}`}>Bid Vol</div>
+          <div className={`${styles.col} ${styles.numCol}`}>Ask Vol</div>
+          <div className={styles.col}>Status</div>
+          <div className={styles.col} />
+        </div>
 
-      <div
-        className={styles.body}
-        style={{ height: `${visible.length * ROW_H}px` }}
-      >
-        {smoothed.map(entry => {
-          const isBid  = entry.displayImbalance >= 0;
-          const absImb = Math.abs(entry.displayImbalance);
-          const dir    = absImb > 0.05 ? (isBid ? 'Bid pressure' : 'Ask pressure') : 'Balanced';
-          const pct    = entry.connected
-            ? `${entry.displayImbalance >= 0 ? '+' : ''}${(entry.displayImbalance * 100).toFixed(2)}%`
-            : '—';
-          const statusKey = entry.connected ? 'live' : entry.connecting ? 'wait' : 'off';
+        <div
+          className={styles.body}
+          style={{ height: `${visible.length * ROW_H}px` }}
+        >
+          {smoothed.map(entry => {
+            const clampedImb = clampUnit(entry.displayImbalance);
+            const isBid  = clampedImb >= 0;
+            const absImb = Math.abs(clampedImb);
+            const dir    = absImb > 0.05 ? (isBid ? 'Bid pressure' : 'Ask pressure') : 'Balanced';
+            const pct    = entry.connected
+              ? `${clampedImb >= 0 ? '+' : ''}${clampedImb.toFixed(2)}`
+              : '—';
+            const statusKey = entry.connected ? 'live' : entry.connecting ? 'wait' : 'off';
 
-          return (
-            <div
-              key={entry.id}
-              className={styles.dataRow}
-              style={{ transform: `translateY(${entry.rank * ROW_H}px)` }}
-            >
-              <div className={`${styles.col} ${styles.rankCol}`}>{entry.rank + 1}</div>
-
-              <div className={`${styles.col} ${styles.dexCol}`}>
-                <ExchangeIcon id={entry.id} name={entry.name} color={entry.color} />
-              </div>
-
+            return (
               <div
-                className={`${styles.col} ${styles.numCol} ${styles.imbCol}`}
-                data-dir={entry.connected ? (isBid ? 'bid' : 'ask') : 'none'}
+                key={entry.id}
+                className={styles.dataRow}
+                style={{ transform: `translateY(${entry.rank * ROW_H}px)` }}
               >
-                {pct}
-              </div>
+                <div className={`${styles.col} ${styles.rankCol}`}>{entry.rank + 1}</div>
 
-              <div
-                className={`${styles.col} ${styles.dirCol}`}
-                data-dir={entry.connected ? (isBid ? 'bid' : 'ask') : 'none'}
-              >
-                {entry.connected ? dir : '—'}
-              </div>
+                <div className={`${styles.col} ${styles.dexCol}`}>
+                  <ExchangeIcon id={entry.id} name={entry.name} color={entry.color} />
+                </div>
 
-              <div className={`${styles.col} ${styles.numCol} ${styles.volCol}`}>
-                {entry.connected ? fv(entry.displayBidVol) : '—'}
-              </div>
+                <div
+                  className={`${styles.col} ${styles.numCol} ${styles.imbCol}`}
+                  data-dir={entry.connected ? (isBid ? 'bid' : 'ask') : 'none'}
+                >
+                  {pct}
+                </div>
 
-              <div className={`${styles.col} ${styles.numCol} ${styles.volAskCol}`}>
-                {entry.connected ? fv(entry.displayAskVol) : '—'}
-              </div>
+                <div
+                  className={`${styles.col} ${styles.dirCol}`}
+                  data-dir={entry.connected ? (isBid ? 'bid' : 'ask') : 'none'}
+                >
+                  {entry.connected ? dir : '—'}
+                </div>
 
-              <div className={`${styles.col} ${styles.statusCol}`}>
-                <span className={styles.statusDot} data-s={statusKey} />
-                <span className={styles.statusText}>
-                  {entry.connected ? 'Live' : entry.connecting ? 'Connecting' : 'Offline'}
-                </span>
-              </div>
+                <div className={`${styles.col} ${styles.numCol} ${styles.volCol}`}>
+                  {entry.connected ? fv(entry.displayBidVol) : '—'}
+                </div>
 
-              <div className={`${styles.col} ${styles.actionCol}`}>
-                <Link href={entry.route} className={styles.openLink}>
-                  Open ↗
-                </Link>
+                <div className={`${styles.col} ${styles.numCol} ${styles.volAskCol}`}>
+                  {entry.connected ? fv(entry.displayAskVol) : '—'}
+                </div>
+
+                <div className={`${styles.col} ${styles.statusCol}`}>
+                  <span className={styles.statusDot} data-s={statusKey} />
+                  <span className={styles.statusText}>
+                    {entry.connected ? 'Live' : entry.connecting ? 'Connecting' : 'Offline'}
+                  </span>
+                </div>
+
+                <div className={`${styles.col} ${styles.actionCol}`}>
+                  <Link href={entry.route} className={styles.openLink}>
+                    Open ↗
+                  </Link>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

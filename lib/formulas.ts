@@ -3,6 +3,11 @@ import { FormulaParams, FormulaType, Level } from '@/types/orderbook';
 // Use a tiny epsilon to avoid division by zero for levels exactly at mid
 const MIN_DIST = 1e-9;
 
+function clampUnit(x: number): number {
+  if (!Number.isFinite(x)) return 0;
+  return Math.max(-1, Math.min(1, x));
+}
+
 function getMid(bids: Level[], asks: Level[], referenceMid?: number): number {
   if (referenceMid && referenceMid > 0) return referenceMid;
   if (!bids.length || !asks.length) return 0;
@@ -66,7 +71,19 @@ export function calcNearMid(
 }
 
 /**
- * 3. Order Flow Imbalance (OFI)
+ * 3. Classic Imbalance (depth ratio)
+ * I = (ΣBid - ΣAsk) / (ΣBid + ΣAsk)
+ */
+export function calcClassic(bids: Level[], asks: Level[]): number {
+  const bidVol = bids.reduce((s, l) => s + parseFloat(l.a), 0);
+  const askVol = asks.reduce((s, l) => s + parseFloat(l.a), 0);
+  const total = bidVol + askVol;
+  if (total === 0) return 0;
+  return (bidVol - askVol) / total;
+}
+
+/**
+ * 4. Order Flow Imbalance (OFI)
  * OFI = Σ(ΔB_i - ΔA_i), normalized by total depth
  * Requires previous tick's bids/asks to compute deltas
  */
@@ -111,9 +128,9 @@ export function calcOFI(
 }
 
 /**
- * 4. Microprice Imbalance
+ * 5. Microprice Imbalance
  * MP = (P_ask·V_bid + P_bid·V_ask) / (V_bid + V_ask)
- * I  = (MP - Mid) / Spread  → [-1, 1]
+ * I  = 2 * (MP - Mid) / Spread  → [-1, 1]
  */
 export function calcMicroprice(bids: Level[], asks: Level[]): number {
   if (!bids.length || !asks.length) return 0;
@@ -131,11 +148,11 @@ export function calcMicroprice(bids: Level[], asks: Level[]): number {
   const spread = bestAskPrice - bestBidPrice;
 
   if (spread <= 0) return 0;
-  return Math.max(-1, Math.min(1, (mp - mid) / spread));
+  return Math.max(-1, Math.min(1, (2 * (mp - mid)) / spread));
 }
 
 /**
- * 5. Power-Law Depth Imbalance
+ * 6. Power-Law Depth Imbalance
  * I = (Σ B_i/d_i^α - Σ A_i/d_i^α) / (Σ B_i/d_i^α + Σ A_i/d_i^α)
  * d_i = fractional distance from mid
  */
@@ -174,18 +191,29 @@ export function computeImbalance(
   prevAsks: Level[],
   referenceMid?: number,
 ): number {
+  let raw = 0;
   switch (formula) {
     case 'distanceWeighted':
-      return calcDistanceWeighted(bids, asks, params.lambda, referenceMid);
+      raw = calcDistanceWeighted(bids, asks, params.lambda, referenceMid);
+      break;
     case 'nearMid':
-      return calcNearMid(bids, asks, params.xPct, referenceMid);
+      raw = calcNearMid(bids, asks, params.xPct, referenceMid);
+      break;
+    case 'classic':
+      raw = calcClassic(bids, asks);
+      break;
     case 'ofi':
-      return calcOFI(bids, asks, prevBids, prevAsks);
+      raw = calcOFI(bids, asks, prevBids, prevAsks);
+      break;
     case 'microprice':
-      return calcMicroprice(bids, asks);
+      raw = calcMicroprice(bids, asks);
+      break;
     case 'powerLaw':
-      return calcPowerLaw(bids, asks, params.alpha, referenceMid);
+      raw = calcPowerLaw(bids, asks, params.alpha, referenceMid);
+      break;
     default:
-      return 0;
+      raw = 0;
+      break;
   }
+  return clampUnit(raw);
 }
