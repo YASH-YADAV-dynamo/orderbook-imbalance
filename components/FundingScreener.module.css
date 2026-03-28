@@ -373,6 +373,11 @@
   border-color: var(--accent);
 }
 
+@media (max-width: 900px) {
+  .wrap       { overflow: visible; flex: none; }
+  .tableOuter { overflow-x: auto; overflow-y: visible; flex: none; min-height: auto; }
+}
+
 @media (max-width: 640px) {
   .wrap {
     --sticky-col1: 104px;

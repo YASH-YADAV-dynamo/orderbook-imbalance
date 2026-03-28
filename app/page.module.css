@@ -3,9 +3,9 @@
    ═══════════════════════════════════════════════════════ */
 
 .page {
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
+  /* Exactly fill the viewport — this is the true scroll boundary on desktop */
+  height: 100dvh;
+  height: 100vh; /* fallback */
   width: 100%;
   background: var(--bg);
   color: var(--fg);
@@ -534,6 +534,11 @@
 }
 
 @media (max-width: 900px) {
+  .page         { height: auto; overflow: visible; }
+  .main         { overflow: visible; flex: none; }
+  .contentGrid  { flex: none; min-height: auto; }
+  .widgetOuter  { overflow: visible; flex: none; min-height: auto; }
+
   .nav { padding: 0 20px; }
   .main { padding: 16px 20px 20px; }
   .contentGrid {

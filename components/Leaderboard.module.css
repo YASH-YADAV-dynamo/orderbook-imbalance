@@ -4,6 +4,7 @@
 
 .tableScroll {
   flex: 1 1 auto;
+  height: 0;
   min-height: 0;
   min-width: 0;
   overflow: auto;
@@ -255,6 +256,13 @@
 }
 
 @media (max-width: 768px) {
+  .tableScroll {
+    flex: none;
+    height: auto;
+    overflow-y: visible;
+    overflow-x: auto;
+  }
+
   .table { min-width: 700px; }
 
   .row,

@@ -1,7 +1,7 @@
 .page {
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
+  /* Exactly fill the viewport — this is the true scroll boundary on desktop */
+  height: 100dvh;
+  height: 100vh; /* fallback */
   width: 100%;
   background: var(--bg);
   color: var(--fg);
@@ -100,12 +100,13 @@
   overscroll-behavior: contain;
 }
 
-@media (max-width: 640px) {
-  .nav {
-    padding: 0 12px;
-  }
+@media (max-width: 900px) {
+  .page { height: auto; overflow: visible; }
+  .main { overflow: visible; flex: none; }
+  .nav  { position: relative; }
+}
 
-  .homeLink {
-    font-size: 10px;
-  }
+@media (max-width: 640px) {
+  .nav      { padding: 0 12px; }
+  .homeLink { font-size: 10px; }
 }
