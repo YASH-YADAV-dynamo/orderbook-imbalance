@@ -10,6 +10,7 @@
     "mcp": "tsx mcp-server/index.ts"
   },
   "dependencies": {
+    "@hotstuff-labs/ts-sdk": "^0.1.1-beta.4",
     "chart.js": "^4.5.1",
     "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^4.1.0",
@@ -17,7 +18,9 @@
     "react": "19.2.3",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "19.2.3",
+    "viem": "^2.47.6",
     "ws": "^8.19.0",
+    "zod": "^4.3.6",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
@@ -29,7 +32,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tsx": "^4.21.0",
-    "typescript": "5.9.3",
-    "zod": "^4.3.6"
+    "typescript": "5.9.3"
   }
 }

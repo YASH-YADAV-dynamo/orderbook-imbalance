@@ -1,4 +1,4 @@
-export type ExecutionExchange = 'pacifica' | 'hyperliquid';
+export type ExecutionExchange = 'pacifica' | 'hyperliquid' | 'hotstuff';
 export type ExecutionSide = 'buy' | 'sell';
 
 export interface TradeIntent {
@@ -16,6 +16,7 @@ export interface AccountStatusResponse {
   hasExchangeAccount: boolean;
   hasApiAgent: boolean;
   apiAgentId?: string;
+  brokerApproved?: boolean;
   canTrade: boolean;
   createAccountUrl?: string;
   connectAccountUrl?: string;
@@ -46,6 +47,19 @@ export interface AgentRegisterResponse {
   message?: string;
 }
 
+export interface AgentActivateRequest {
+  exchange: ExecutionExchange;
+  walletAddress: string;
+  apiAgentId: string;
+  signedAgentPayload: unknown;
+}
+
+export interface AgentActivateResponse {
+  agentId: string;
+  status: 'active' | 'pending' | 'rejected';
+  message?: string;
+}
+
 export interface PlaceIntentRequest {
   exchange: ExecutionExchange;
   walletAddress: string;
@@ -53,10 +67,36 @@ export interface PlaceIntentRequest {
   side: ExecutionSide;
   sizeUsd: string;
   apiAgentId?: string;
+  signedOrderPayload?: unknown;
 }
 
 export interface PlaceIntentResponse {
   intentId: string;
   status: 'accepted' | 'queued' | 'rejected';
+  message?: string;
+  exchangeTxHash?: string;
+}
+
+export interface OrderContextRequest {
+  exchange: ExecutionExchange;
+  symbol: string;
+}
+
+export interface OrderContextResponse {
+  instrumentId: number;
+  nativeSymbol: string;
+  markPrice: string;
+}
+
+export interface ApproveBrokerRequest {
+  exchange: ExecutionExchange;
+  walletAddress: string;
+  apiAgentId?: string;
+  signedApprovalPayload?: unknown;
+}
+
+export interface ApproveBrokerResponse {
+  approvalId: string;
+  status: 'approved' | 'pending' | 'rejected';
   message?: string;
 }

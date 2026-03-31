@@ -6,6 +6,7 @@ import type { AdapterId } from '@/lib/dexAdapters';
 import { FUNDING_ADAPTER_ORDER } from '@/lib/funding/buildMatrix';
 import { FUNDING_RATE_DEADBAND } from '@/lib/funding/constants';
 import { MARKET_PAIRS } from '@/lib/pairs';
+import { toExecutionExchange } from '@/lib/trading/exchangeRouting';
 import type { FundingApiResponse, FundingCellResult } from '@/types/funding';
 import type { TradeIntent } from '@/types/trading';
 import TradeExecutionModal from '@/components/TradeExecutionModal';
@@ -77,9 +78,8 @@ function FundingCell({
   const { data } = cell;
   const rem = data.nextFundingMs - nowMs;
   const tag = data.tag;
-  const actionableExchange = adapterId === 'pacifica' || adapterId === 'hyperliquid'
-    ? adapterId
-    : null;
+  const routedExchange = toExecutionExchange(adapterId);
+  const actionableExchange = routedExchange === 'hotstuff' ? routedExchange : null;
 
   const signalButton = tag === 'buy' || tag === 'sell'
     ? (
@@ -87,7 +87,9 @@ function FundingCell({
         type="button"
         className={`${styles.pill} ${tag === 'buy' ? styles.pillBuy : styles.pillSell} ${actionableExchange ? styles.pillAction : ''}`}
         disabled={!actionableExchange}
-        title={actionableExchange ? `Send ${tag.toUpperCase()} intent for ${symbol} on ${ADAPTERS[actionableExchange].name}` : 'Execution not enabled for this venue yet'}
+        title={actionableExchange
+          ? `Send ${tag.toUpperCase()} intent for ${symbol} on ${ADAPTERS[actionableExchange].name}`
+          : `${ADAPTERS[adapterId].name} execution coming soon...`}
         onClick={() => {
           if (!actionableExchange) return;
           onSignalClick({

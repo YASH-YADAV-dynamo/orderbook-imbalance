@@ -1,4 +1,8 @@
 import type {
+  AgentActivateRequest,
+  AgentActivateResponse,
+  ApproveBrokerRequest,
+  ApproveBrokerResponse,
   AccountStatusRequest,
   AccountStatusResponse,
   AgentChallengeRequest,
@@ -7,6 +11,8 @@ import type {
   AgentRegisterResponse,
   PlaceIntentRequest,
   PlaceIntentResponse,
+  OrderContextRequest,
+  OrderContextResponse,
 } from '@/types/trading';
 
 const BASE = '/api/trading';
@@ -46,4 +52,16 @@ export function registerAgent(body: AgentRegisterRequest): Promise<AgentRegister
 
 export function placeTradeIntent(body: PlaceIntentRequest): Promise<PlaceIntentResponse> {
   return postJson<PlaceIntentRequest, PlaceIntentResponse>('/orders/intent', body);
+}
+
+export function approveBroker(body: ApproveBrokerRequest): Promise<ApproveBrokerResponse> {
+  return postJson<ApproveBrokerRequest, ApproveBrokerResponse>('/broker/approve', body);
+}
+
+export function fetchOrderContext(body: OrderContextRequest): Promise<OrderContextResponse> {
+  return postJson<OrderContextRequest, OrderContextResponse>('/orders/context', body);
+}
+
+export function activateAgent(body: AgentActivateRequest): Promise<AgentActivateResponse> {
+  return postJson<AgentActivateRequest, AgentActivateResponse>('/agent/activate', body);
 }

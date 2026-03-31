@@ -24,6 +24,12 @@ export default function ArbitragePage() {
           <span className={styles.navTitle}>Funding rate arbitrage</span>
         </div>
         <div className={styles.navActions}>
+          <Link href="/arbitrage/profile" className={styles.homeLink}>
+            Profile
+          </Link>
+          <Link href="/arbitrage/strategies" className={styles.homeLink}>
+            Strategies
+          </Link>
           <Link href="/" className={styles.homeLink}>
             ← Orderbook imbalance
           </Link>
