@@ -1,13 +1,14 @@
 'use client';
 
-import { EXCHANGE_OP_CODES, signAction } from '@hotstuff-labs/ts-sdk';
+import { ExchangeClient, HttpTransport } from '@hotstuff-labs/ts-sdk';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { ExecutionOrderType, ExecutionSide, ExecutionTif } from '@/types/trading';
 import { getHotstuffAgentPrivateKey } from './agentStorage';
-import { isHotstuffTestnet } from './network';
+import { getHotstuffHttpBase, isHotstuffTestnet } from './network';
 
-interface BuildArgs {
+interface PlaceWithSdkArgs {
   walletAddress: string;
+  apiAgentId?: string;
   instrumentId: number;
   markPrice: string;
   sizeUsd: string;
@@ -16,7 +17,13 @@ interface BuildArgs {
   tif: ExecutionTif;
   slippagePct: string;
   limitPrice: string;
-  apiAgentId?: string;
+}
+
+interface SdkPlaceOrderResult {
+  raw: unknown;
+  txHash?: string;
+  orderId?: string;
+  exchangeAddress?: string;
 }
 
 function toFixedSize(notionalUsd: number, markPrice: number): string {
@@ -27,7 +34,46 @@ function toFixedSize(notionalUsd: number, markPrice: number): string {
   return raw.toFixed(6);
 }
 
-export async function buildSignedHotstuffOrderPayload(args: BuildArgs): Promise<unknown> {
+function extractTxHash(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  const rec = result as Record<string, unknown>;
+  const direct = rec.tx_hash ?? rec.txHash ?? rec.hash;
+  return typeof direct === 'string' && direct ? direct : undefined;
+}
+
+function extractExchangeAddress(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  const rec = result as Record<string, unknown>;
+  return typeof rec.address === 'string' && rec.address ? rec.address : undefined;
+}
+
+function extractOrderId(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  const rec = result as Record<string, unknown>;
+  const data = rec.data;
+  if (!data || typeof data !== 'object') return undefined;
+  const status = (data as Record<string, unknown>).status;
+  if (!status) return undefined;
+  if (typeof status === 'object' && !Array.isArray(status)) {
+    const oid = (status as Record<string, unknown>).oid;
+    if (typeof oid === 'number' || typeof oid === 'string') return String(oid);
+  }
+  if (Array.isArray(status)) {
+    for (const entry of status) {
+      if (!entry || typeof entry !== 'object') continue;
+      const maybeObj = entry as Record<string, unknown>;
+      if (typeof maybeObj.oid === 'number' || typeof maybeObj.oid === 'string') return String(maybeObj.oid);
+      const nested = maybeObj.success;
+      if (nested && typeof nested === 'object') {
+        const nestedOid = (nested as Record<string, unknown>).oid;
+        if (typeof nestedOid === 'number' || typeof nestedOid === 'string') return String(nestedOid);
+      }
+    }
+  }
+  return undefined;
+}
+
+export async function placeHotstuffOrderWithSdk(args: PlaceWithSdkArgs): Promise<SdkPlaceOrderResult> {
   const agentPrivateKey = getHotstuffAgentPrivateKey(args.walletAddress, args.apiAgentId);
   if (!agentPrivateKey) {
     throw new Error('API agent signer key is missing on this browser. Re-activate API agent in setup once.');
@@ -60,11 +106,25 @@ export async function buildSignedHotstuffOrderPayload(args: BuildArgs): Promise<
   const finalTif = args.orderType === 'market' ? 'IOC' : args.tif;
   const nonce = Date.now();
 
-  const orderAction = {
+  const base = getHotstuffHttpBase();
+  const testnet = isHotstuffTestnet();
+  const transport = new HttpTransport({
+    isTestnet: testnet,
+    server: {
+      mainnet: { api: base, rpc: base },
+      testnet: { api: base, rpc: base },
+    },
+  });
+  const exchange = new ExchangeClient({
+    transport,
+    wallet: signingWallet,
+  });
+
+  const raw = await exchange.placeOrder({
     orders: [{
       instrumentId: args.instrumentId,
       side,
-      positionSide: 'BOTH' as const,
+      positionSide: 'BOTH',
       price: finalPrice,
       size: toFixedSize(notionalUsd, markPrice),
       tif: finalTif,
@@ -73,11 +133,10 @@ export async function buildSignedHotstuffOrderPayload(args: BuildArgs): Promise<
       cloid: `arb-${nonce}`,
       triggerPx: '0',
       isMarket: args.orderType === 'market',
-      tpsl: '' as const,
-      grouping: '' as const,
+      tpsl: '',
+      grouping: '',
     }],
     expiresAfter: Date.now() + 60_000,
-    nonce,
     ...(process.env.NEXT_PUBLIC_BROKER_ADDRESS && process.env.NEXT_PUBLIC_MAX_FEE_RATE
       ? {
         brokerConfig: {
@@ -86,25 +145,12 @@ export async function buildSignedHotstuffOrderPayload(args: BuildArgs): Promise<
         },
       }
       : {}),
-  };
-
-  const txType = EXCHANGE_OP_CODES.placeOrder;
-  const testnet = isHotstuffTestnet();
-  const signature = await signAction(
-    {
-      wallet: signingWallet,
-      action: orderAction,
-      txType,
-    },
-    { isTestnet: testnet },
-  );
+  });
 
   return {
-    action: {
-      data: orderAction,
-      type: String(txType),
-    },
-    signature,
-    nonce,
+    raw,
+    txHash: extractTxHash(raw),
+    orderId: extractOrderId(raw),
+    exchangeAddress: extractExchangeAddress(raw),
   };
 }

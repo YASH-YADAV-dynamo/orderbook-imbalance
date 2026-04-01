@@ -63,3 +63,22 @@ export async function fetchHotstuffOrderContext(symbol: string): Promise<{
     markPrice,
   };
 }
+
+interface HotstuffRecentTrade {
+  tx_hash?: string;
+  price?: string | number;
+  size?: string | number;
+  timestamp?: string | number;
+}
+
+export async function findHotstuffTradeByTxHash(
+  symbol: string,
+  txHash: string,
+): Promise<HotstuffRecentTrade | null> {
+  const nativeSymbol = resolvePair(symbol, 'hotstuff');
+  if (!nativeSymbol) return null;
+  const recent = await postHotstuffInfo<HotstuffRecentTrade[]>('trades', { symbol: nativeSymbol });
+  if (!Array.isArray(recent)) return null;
+  const target = txHash.toLowerCase();
+  return recent.find(t => String(t.tx_hash ?? '').toLowerCase() === target) ?? null;
+}

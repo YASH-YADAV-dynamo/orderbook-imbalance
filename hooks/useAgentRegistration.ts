@@ -42,8 +42,35 @@ export function useAgentRegistration(exchange: ExecutionExchange, walletAddress:
             return directAgent;
           }
           if (msg.includes('exists') || msg.includes('already')) {
-            setAgentId(built.agentAddress);
-            return built.agentAddress;
+            try {
+              const directAgent = await activateHotstuffAgentDirectWithKey(
+                walletAddress,
+                options?.agentPrivateKey ?? ensureHotstuffAgentPrivateKey(walletAddress),
+              );
+              setAgentId(directAgent);
+              return directAgent;
+            } catch (directError) {
+              const directMsg = directError instanceof Error
+                ? directError.message.toLowerCase()
+                : String(directError).toLowerCase();
+              if (directMsg.includes('exists') || directMsg.includes('already')) {
+                setAgentId(built.agentAddress);
+                return built.agentAddress;
+              }
+              throw directError;
+            }
+          }
+          if (
+            msg.includes('hotstuff http 500')
+            || msg.includes('internal server')
+            || msg.includes('invalid order signer')
+          ) {
+            const directAgent = await activateHotstuffAgentDirectWithKey(
+              walletAddress,
+              options?.agentPrivateKey ?? ensureHotstuffAgentPrivateKey(walletAddress),
+            );
+            setAgentId(directAgent);
+            return directAgent;
           }
           throw error;
         }

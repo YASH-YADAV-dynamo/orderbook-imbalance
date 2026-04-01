@@ -73,7 +73,7 @@ export async function buildHotstuffAgentActivationPayload(
   };
 
   if (!existingPrivateKey || providedAgentPrivateKey) {
-    setHotstuffAgentPrivateKey(walletAddress, agentPrivateKey);
+    setHotstuffAgentPrivateKey(walletAddress, agentPrivateKey, undefined, agentAccount.address);
   }
 
   return {

@@ -22,6 +22,7 @@ export async function routeTradingPost(req: NextRequest, routeKey: string): Prom
   if (routeKey === 'agent/activate') return handler.activateAgent(body);
   if (routeKey === 'broker/approve') return handler.approveBroker(body);
   if (routeKey === 'orders/context') return handler.orderContext(body);
+  if (routeKey === 'orders/trade') return handler.orderIntent(body);
   if (routeKey === 'orders/intent') return handler.orderIntent(body);
   return jsonError(TRADING_ERRORS.routeNotFound, 404);
 }

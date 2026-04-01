@@ -75,6 +75,11 @@
   gap: 8px;
 }
 
+.row > .input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
 .cta,
 .secondary {
   border-radius: 8px;
@@ -107,6 +112,47 @@
 
 .slider {
   width: 100%;
+  accent-color: var(--accent);
+  height: 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: filter 0.18s ease;
+}
+
+.slider:hover {
+  filter: brightness(1.05);
+}
+
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 8px 12px;
+  font-size: 12px;
+  text-decoration: none;
+  background: var(--accent);
+  color: #041116;
 }
 
 .error,

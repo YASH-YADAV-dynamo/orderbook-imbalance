@@ -32,6 +32,11 @@ export const PlaceIntentSchema = z.object({
   side: SideSchema,
   sizeUsd: z.string().min(1),
   apiAgentId: z.string().optional(),
+  autoApproveBroker: z.boolean().optional(),
+  orderType: z.enum(['market', 'limit']).optional(),
+  tif: z.enum(['IOC', 'GTC']).optional(),
+  slippagePct: z.string().optional(),
+  limitPrice: z.string().optional(),
   signedOrderPayload: z.unknown().optional(),
 });
 

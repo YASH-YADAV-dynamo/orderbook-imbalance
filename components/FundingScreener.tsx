@@ -136,6 +136,10 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [tradeIntent, setTradeIntent] = useState<TradeIntent | null>(null);
 
+  const handleSignalClick = useCallback((intent: TradeIntent) => {
+    setTradeIntent(intent);
+  }, []);
+
   const load = useCallback(async () => {
     setLoadError(null);
     try {
@@ -259,7 +263,7 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
                       symbol={row.symbol}
                       cell={row.cells[id]}
                       nowMs={nowMs}
-                      onSignalClick={setTradeIntent}
+                      onSignalClick={handleSignalClick}
                     />
                   </td>
                 ))}

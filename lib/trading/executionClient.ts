@@ -50,8 +50,8 @@ export function registerAgent(body: AgentRegisterRequest): Promise<AgentRegister
   return postJson<AgentRegisterRequest, AgentRegisterResponse>('/agent/register', body);
 }
 
-export function placeTradeIntent(body: PlaceIntentRequest): Promise<PlaceIntentResponse> {
-  return postJson<PlaceIntentRequest, PlaceIntentResponse>('/orders/intent', body);
+export function placeTrade(body: PlaceIntentRequest): Promise<PlaceIntentResponse> {
+  return postJson<PlaceIntentRequest, PlaceIntentResponse>('/orders/trade', body);
 }
 
 export function approveBroker(body: ApproveBrokerRequest): Promise<ApproveBrokerResponse> {

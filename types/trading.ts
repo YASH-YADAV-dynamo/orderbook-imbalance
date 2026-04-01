@@ -1,5 +1,7 @@
 export type ExecutionExchange = 'pacifica' | 'hyperliquid' | 'hotstuff';
 export type ExecutionSide = 'buy' | 'sell';
+export type ExecutionOrderType = 'market' | 'limit';
+export type ExecutionTif = 'IOC' | 'GTC';
 
 export interface TradeIntent {
   exchange: ExecutionExchange;
@@ -67,6 +69,11 @@ export interface PlaceIntentRequest {
   side: ExecutionSide;
   sizeUsd: string;
   apiAgentId?: string;
+  autoApproveBroker?: boolean;
+  orderType?: ExecutionOrderType;
+  tif?: ExecutionTif;
+  slippagePct?: string;
+  limitPrice?: string;
   signedOrderPayload?: unknown;
 }
 
@@ -75,6 +82,12 @@ export interface PlaceIntentResponse {
   status: 'accepted' | 'queued' | 'rejected';
   message?: string;
   exchangeTxHash?: string;
+  exchangeOrderId?: string;
+  exchangeAddress?: string;
+  executed?: boolean;
+  executionPrice?: string;
+  executionSize?: string;
+  executionTimestamp?: string;
 }
 
 export interface OrderContextRequest {

@@ -15,6 +15,7 @@ export const TRADING_ERRORS = {
   invalidSignature: 'Invalid signature format',
   apiAgentMismatch: 'apiAgentId mismatch',
   brokerApprovalFailed: 'Broker approval failed',
+  signedOrderPayloadRequired: 'signedOrderPayload is required for trade placement',
 } as const;
 
 export const TRADING_MESSAGES = {
@@ -23,6 +24,6 @@ export const TRADING_MESSAGES = {
   agentRegistered: 'API agent registered',
   brokerApproved: 'Broker approval recorded',
   brokerPending: 'Broker approval queued',
-  intentAccepted: 'Intent accepted',
-  intentQueued: 'Intent queued',
+  intentAccepted: 'Trade placed',
+  intentQueued: 'Trade queued',
 } as const;

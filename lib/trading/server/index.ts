@@ -14,7 +14,7 @@
  * 2) agent/challenge -> returns a one-time message to sign
  * 3) agent/register -> verifies challenge context and stores agent
  * 4) broker/approve -> records or forwards broker-fee approval payload
- * 5) orders/intent -> records intent and optionally forwards signed payload
+ * 5) orders/trade -> places trade via signed payload
  */
 
 export * from './router';

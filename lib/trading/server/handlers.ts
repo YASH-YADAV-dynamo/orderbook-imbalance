@@ -12,7 +12,7 @@ import {
 } from './schemas';
 import { TRADING_ERRORS, TRADING_MESSAGES } from './messages';
 import { deleteChallenge, getChallenge, getOrInitAccount, setChallenge, updateAccount } from './devState';
-import { fetchHotstuffOrderContext, postHotstuffExchange } from './hotstuffHttp';
+import { fetchHotstuffOrderContext, findHotstuffTradeByTxHash, postHotstuffExchange } from './hotstuffHttp';
 
 type Json = Record<string, unknown>;
 
@@ -43,6 +43,46 @@ function jsonError(error: string, status: number): Response {
 function toNumber(value: string): number {
   const num = Number(value);
   return Number.isFinite(num) ? num : Number.NaN;
+}
+
+function extractTxHash(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  const rec = result as Record<string, unknown>;
+  const direct = rec.tx_hash ?? rec.txHash ?? rec.hash;
+  if (typeof direct === 'string' && direct) return direct;
+  return undefined;
+}
+
+function extractExchangeAddress(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  const rec = result as Record<string, unknown>;
+  return typeof rec.address === 'string' && rec.address ? rec.address : undefined;
+}
+
+function extractOrderId(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  const rec = result as Record<string, unknown>;
+  const data = rec.data;
+  if (!data || typeof data !== 'object') return undefined;
+  const status = (data as Record<string, unknown>).status;
+  if (!status) return undefined;
+  if (typeof status === 'object' && !Array.isArray(status)) {
+    const oid = (status as Record<string, unknown>).oid;
+    if (typeof oid === 'number' || typeof oid === 'string') return String(oid);
+  }
+  if (Array.isArray(status)) {
+    for (const entry of status) {
+      if (!entry || typeof entry !== 'object') continue;
+      const maybeObj = entry as Record<string, unknown>;
+      if (typeof maybeObj.oid === 'number' || typeof maybeObj.oid === 'string') return String(maybeObj.oid);
+      const nested = maybeObj.success;
+      if (nested && typeof nested === 'object') {
+        const nestedOid = (nested as Record<string, unknown>).oid;
+        if (typeof nestedOid === 'number' || typeof nestedOid === 'string') return String(nestedOid);
+      }
+    }
+  }
+  return undefined;
 }
 
 function buildCommonHandler(exchange: Exchange): ExchangeHandler {
@@ -142,6 +182,9 @@ function buildCommonHandler(exchange: Exchange): ExchangeHandler {
       if (parsed.data.apiAgentId && parsed.data.apiAgentId !== account.apiAgentId) {
         return jsonError(TRADING_ERRORS.apiAgentMismatch, 401);
       }
+      if (parsed.data.autoApproveBroker && !account.brokerApproved) {
+        updateAccount(exchange, parsed.data.walletAddress, { brokerApproved: true });
+      }
 
       return Response.json({
         intentId: `intent_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
@@ -169,13 +212,25 @@ function buildHotstuffHandler(): ExchangeHandler {
       if (!parsed.success) return jsonError(parsed.error.issues[0]?.message || TRADING_ERRORS.invalidExchange, 400);
 
       const config = getHotstuffServerConfig();
+      const account = getOrInitAccount('hotstuff', parsed.data.walletAddress);
+      let effectiveApiAgentId = parsed.data.apiAgentId ?? account.apiAgentId;
+      if (!effectiveApiAgentId) return jsonError(TRADING_ERRORS.apiAgentNotConfigured, 403);
+      if (account.apiAgentId && parsed.data.apiAgentId && parsed.data.apiAgentId !== account.apiAgentId) {
+        // Allow switching between multiple active agents; persist the currently used one.
+        effectiveApiAgentId = parsed.data.apiAgentId;
+      }
       if (parsed.data.signedApprovalPayload) {
-        await postHotstuffExchange(parsed.data.signedApprovalPayload);
+        try {
+          await postHotstuffExchange(parsed.data.signedApprovalPayload);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return jsonError(message, 400);
+        }
       }
       updateAccount('hotstuff', parsed.data.walletAddress, {
         brokerApproved: true,
         hasApiAgent: true,
-        apiAgentId: parsed.data.apiAgentId ?? getOrInitAccount('hotstuff', parsed.data.walletAddress).apiAgentId,
+        apiAgentId: effectiveApiAgentId,
       });
       return Response.json({
         approvalId: `approval_hotstuff_${crypto.randomUUID().slice(0, 8)}`,
@@ -192,24 +247,67 @@ function buildHotstuffHandler(): ExchangeHandler {
       if (!parsed.success) return jsonError(parsed.error.issues[0]?.message || TRADING_ERRORS.invalidExchange, 400);
       const size = toNumber(parsed.data.sizeUsd);
       if (!Number.isFinite(size) || size <= 0) return jsonError(TRADING_ERRORS.invalidSizeUsd, 400);
+      const account = getOrInitAccount('hotstuff', parsed.data.walletAddress);
+      let effectiveApiAgentId = parsed.data.apiAgentId ?? account.apiAgentId;
+      if (!effectiveApiAgentId) return jsonError(TRADING_ERRORS.apiAgentNotConfigured, 403);
+      if (parsed.data.apiAgentId && account.apiAgentId && parsed.data.apiAgentId !== account.apiAgentId) {
+        // Allow switching between multiple active agents; persist the currently used one.
+        effectiveApiAgentId = parsed.data.apiAgentId;
+      }
+      if (!account.hasApiAgent || !account.apiAgentId || account.apiAgentId !== effectiveApiAgentId) {
+        updateAccount('hotstuff', parsed.data.walletAddress, {
+          hasApiAgent: true,
+          apiAgentId: effectiveApiAgentId,
+        });
+      }
+      if (parsed.data.autoApproveBroker && !account.brokerApproved) {
+        updateAccount('hotstuff', parsed.data.walletAddress, { brokerApproved: true });
+      }
+      if (!parsed.data.signedOrderPayload) {
+        return jsonError(TRADING_ERRORS.signedOrderPayloadRequired, 400);
+      }
+      let exchangeResult: unknown;
+      try {
+        exchangeResult = await postHotstuffExchange(parsed.data.signedOrderPayload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return jsonError(message, 400);
+      }
+      const txHash = extractTxHash(exchangeResult);
+      const orderId = extractOrderId(exchangeResult);
+      const exchangeAddress = extractExchangeAddress(exchangeResult);
+      let executed = false;
+      let executionPrice: string | undefined;
+      let executionSize: string | undefined;
+      let executionTimestamp: string | undefined;
 
-      let txHash: string | undefined;
-      let status: 'accepted' | 'queued' = 'accepted';
-      let message: string = TRADING_MESSAGES.intentAccepted;
-
-      if (parsed.data.signedOrderPayload) {
-        const result = (await postHotstuffExchange(parsed.data.signedOrderPayload)) as { tx_hash?: string };
-        txHash = result.tx_hash;
-      } else {
-        status = 'queued';
-        message = TRADING_MESSAGES.intentQueued;
+      if (txHash) {
+        try {
+          const matchedTrade = await findHotstuffTradeByTxHash(parsed.data.symbol, txHash);
+          if (matchedTrade) {
+            executed = true;
+            executionPrice = matchedTrade.price != null ? String(matchedTrade.price) : undefined;
+            executionSize = matchedTrade.size != null ? String(matchedTrade.size) : undefined;
+            executionTimestamp = matchedTrade.timestamp != null ? String(matchedTrade.timestamp) : undefined;
+          }
+        } catch {
+          // Keep placement successful even if verification query fails.
+        }
       }
 
       return Response.json({
         intentId: `intent_hotstuff_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
-        status,
-        message,
+        status: 'accepted',
+        message: executed
+          ? TRADING_MESSAGES.intentAccepted
+          : 'Trade submitted to exchange; no fill found yet.',
         exchangeTxHash: txHash,
+        exchangeOrderId: orderId,
+        exchangeAddress,
+        executed,
+        executionPrice,
+        executionSize,
+        executionTimestamp,
       });
     },
     async orderContext(input) {
@@ -224,7 +322,12 @@ function buildHotstuffHandler(): ExchangeHandler {
         return jsonError(parsed.error.issues[0]?.message || TRADING_ERRORS.invalidWalletAddress, 400);
       }
 
-      await postHotstuffExchange(parsed.data.signedAgentPayload);
+      try {
+        await postHotstuffExchange(parsed.data.signedAgentPayload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return jsonError(message, 400);
+      }
       updateAccount('hotstuff', parsed.data.walletAddress, {
         hasApiAgent: true,
         apiAgentId: parsed.data.apiAgentId,
