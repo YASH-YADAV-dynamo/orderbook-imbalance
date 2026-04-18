@@ -11,6 +11,16 @@ import { getAllPairs } from '@/lib/pairs';
 import { LeaderboardEntry } from '@/components/Leaderboard';
 import OrderbookInfoPanel from '@/components/OrderbookInfoPanel';
 import dynamic from 'next/dynamic';
+import { GlassButton } from '@/components/ui/glass-button';
+import { Zap, Sun, Moon } from 'lucide-react';
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import styles from './page.module.css';
 
 const Leaderboard    = dynamic(() => import('@/components/Leaderboard'),    { ssr: false });
@@ -101,12 +111,30 @@ export default function LandingPage() {
           <span className={styles.navTitle}>Orderbook Imbalance</span>
         </div>
         <div className={styles.navActions}>
-          <Link href="/arbitrage" className={styles.navArbLink}>
-            Funding arbitrage
-          </Link>
-          <button type="button" className={styles.themeBtn} onClick={toggleDarkMode}>
-            {darkMode ? '☀ Light' : '◑ Dark'}
-          </button>
+          <GlassButton asChild size="sm" contentClassName="flex items-center gap-2">
+            <Link href="/arbitrage" className="flex items-center gap-2 no-underline text-inherit">
+              <Zap className="h-3 w-3" />
+              <span>Funding arbitrage</span>
+            </Link>
+          </GlassButton>
+          
+          <GlassButton 
+            size="sm" 
+            onClick={toggleDarkMode}
+            contentClassName="flex items-center gap-2"
+          >
+            {darkMode ? (
+              <>
+                <Sun className="h-3 w-3" />
+                <span>Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="h-3 w-3" />
+                <span>Dark</span>
+              </>
+            )}
+          </GlassButton>
         </div>
       </nav>
 
@@ -146,15 +174,21 @@ export default function LandingPage() {
 
               <div className={styles.ctrlGroup}>
                 <span className={styles.ctrlLabel}>Formula</span>
-                <select
-                  className={styles.ctrlSelect}
+                <Select
                   value={formula}
-                  onChange={e => setFormula(e.target.value as FormulaType)}
+                  onValueChange={val => setFormula(val as FormulaType)}
                 >
-                  {FORMULA_NAMES.map((f, i) => (
-                    <option key={f} value={f}>{i + 1}. {FORMULA_META[f].label}</option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-[230px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FORMULA_NAMES.map((f, i) => (
+                      <SelectItem key={f} value={f}>
+                        {i + 1}.&nbsp;&nbsp;{FORMULA_META[f].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {hasLambda && (

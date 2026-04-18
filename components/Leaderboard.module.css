@@ -22,7 +22,7 @@
 .row,
 .dataRow {
   display: grid;
-  grid-template-columns: 36px 200px 120px 160px 90px 90px 130px 80px;
+  grid-template-columns: 36px 200px 120px 160px 90px 90px 130px 100px;
   align-items: center;
   padding: 0 20px;
   gap: 0;
@@ -56,14 +56,15 @@
 
 /* ── Data rows ── */
 .dataRow {
-  position: absolute;
+  position: relative; /* Changed from absolute as parent card handles position */
   top: 0;
   left: 0;
   right: auto;
-  height: 72px; /* must match ROW_H in TSX */
+  height: 100%;
+  width: 100%;
   border-bottom: 1px solid var(--grid);
-  background: var(--bg-1);
-  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  background: transparent; /* Let glass handle background */
+  transition: none; /* Let card handle transition */
   will-change: transform;
   cursor: default;
 }
@@ -78,7 +79,7 @@
 
 /* ── Shared cell base ── */
 .col {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--fg);
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -92,12 +93,12 @@
   text-align: right;
   padding-right: 16px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /* ── Rank ── */
 .rankCol {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--fg-muted);
   font-family: var(--font-mono);
@@ -149,7 +150,7 @@
 
 /* Exchange name — sits below the icon */
 .dexName {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--fg-muted);
   letter-spacing: 0.01em;
@@ -159,7 +160,7 @@
 
 /* ── Imbalance ── */
 .imbCol {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--fg);
   transition: color 0.3s;
@@ -171,7 +172,7 @@
 
 /* ── Direction ── */
 .dirCol {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--fg-muted);
   letter-spacing: 0.03em;
@@ -209,7 +210,7 @@
 .statusDot[data-s='off']  { background: var(--muted); }
 
 .statusText {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--fg-muted);
   letter-spacing: 0.03em;
 }
@@ -217,20 +218,44 @@
 /* ── Action ── */
 .actionCol {
   padding-right: 0;
+  overflow: visible;
 }
 
 .openLink {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--accent);
   text-decoration: none;
-  letter-spacing: 0.04em;
-  transition: color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(99, 102, 241, 0.04);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  padding: 6px 14px;
+  border-radius: 6px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   white-space: nowrap;
+  width: fit-content;
 }
 
 .openLink:hover {
-  color: var(--fg);
+  background: rgba(99, 102, 241, 0.12);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.openLink svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.5px;
+  transition: transform 0.2s ease;
+}
+
+.openLink:hover svg {
+  transform: translate(1px, -1px);
 }
 
 /* ── Empty state ── */
@@ -250,7 +275,7 @@
 
   .row,
   .dataRow {
-    grid-template-columns: 32px 160px 110px 140px 78px 78px 110px 64px;
+    grid-template-columns: 32px 160px 110px 140px 78px 78px 110px 84px;
     padding: 0 16px;
   }
 }
@@ -268,7 +293,7 @@
   .row,
   .dataRow {
     /* Narrow everything, keep all columns */
-    grid-template-columns: 28px 130px 96px 120px 68px 68px 96px 56px;
+    grid-template-columns: 28px 130px 96px 120px 68px 68px 96px 76px;
     padding: 0 12px;
   }
 }
@@ -278,7 +303,7 @@
 
   .row,
   .dataRow {
-    grid-template-columns: 26px 124px 90px 108px 68px 68px 90px 54px;
+    grid-template-columns: 26px 124px 90px 108px 68px 68px 90px 74px;
     padding: 0 12px;
   }
 }
@@ -288,7 +313,7 @@
 
   .row,
   .dataRow {
-    grid-template-columns: 24px 114px 86px 100px 64px 64px 86px 50px;
+    grid-template-columns: 24px 114px 86px 100px 64px 64px 86px 70px;
     padding: 0 10px;
   }
 }

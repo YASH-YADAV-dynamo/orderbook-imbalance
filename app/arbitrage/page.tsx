@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAppStore } from '@/store/useAppStore';
+import { GlassButton } from '@/components/ui/glass-button';
+import { ArrowLeft, Sun, Moon } from 'lucide-react';
 import styles from './page.module.css';
 
 const FundingScreener = dynamic(() => import('@/components/FundingScreener'), { ssr: false });
@@ -24,17 +26,30 @@ export default function ArbitragePage() {
           <span className={styles.navTitle}>Funding rate arbitrage</span>
         </div>
         <div className={styles.navActions}>
-          <Link href="/" className={styles.homeLink}>
-            ← Orderbook imbalance
-          </Link>
-          <button
-            type="button"
-            className={styles.themeBtn}
+          <GlassButton asChild size="sm" contentClassName="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2 no-underline text-inherit">
+              <ArrowLeft className="h-3 w-3" />
+              <span>Orderbook imbalance</span>
+            </Link>
+          </GlassButton>
+          
+          <GlassButton 
+            size="sm" 
             onClick={toggleDarkMode}
-            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            contentClassName="flex items-center gap-2"
           >
-            {darkMode ? '☀ Light' : '◑ Dark'}
-          </button>
+            {darkMode ? (
+              <>
+                <Sun className="h-3 w-3" />
+                <span>Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="h-3 w-3" />
+                <span>Dark</span>
+              </>
+            )}
+          </GlassButton>
         </div>
       </nav>
 

@@ -123,7 +123,7 @@ export default function MarketSelector({
                 return (
                   <button
                     key={pair.id}
-                    className={`${styles.item} ${pair.id === selected ? styles.itemActive : ''} ${i === hlIdx ? styles.itemHighlight : ''}`}
+                    className={`${styles.item} stagger-item ${pair.id === selected ? styles.itemActive : ''} ${i === hlIdx ? styles.itemHighlight : ''}`}
                     onClick={() => { onSelect(pair.id); setOpen(false); }}
                     onMouseEnter={() => setHlIdx(i)}
                   >

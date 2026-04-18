@@ -1,6 +1,13 @@
 'use client';
 
 import { FormulaParams, FormulaType, FORMULA_META } from '@/types/orderbook';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import styles from './FormulaSelector.module.css';
 
 const FORMULA_ORDER: FormulaType[] = [
@@ -31,17 +38,21 @@ export default function FormulaSelector({
     <div className={styles.wrapper}>
       <div className={styles.sectionTitle}>FORMULA</div>
 
-      <select
-        className={styles.select}
+      <Select
         value={formula}
-        onChange={e => onFormulaChange(e.target.value as FormulaType)}
+        onValueChange={val => onFormulaChange(val as FormulaType)}
       >
-        {FORMULA_ORDER.map((f, i) => (
-          <option key={f} value={f}>
-            [{i + 1}] {FORMULA_META[f].label}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="w-full font-mono text-sm py-5">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {FORMULA_ORDER.map((f, i) => (
+            <SelectItem key={f} value={f}>
+              [{i + 1}] {FORMULA_META[f].label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {/* Lambda slider — distanceWeighted */}
       {formula === 'distanceWeighted' && (
