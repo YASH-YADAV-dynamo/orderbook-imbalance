@@ -11,10 +11,11 @@
   padding: 6px 12px;
   border: 1px solid var(--grid);
   border-radius: 6px;
-  background: var(--bg-2);
+  background: var(--bg-1);
   color: var(--fg);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font-mono);
   cursor: pointer;
   transition: border-color 0.15s;
   white-space: nowrap;
@@ -116,7 +117,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 12px;
+  padding: 12px 12px 12px 24px;
+  letter-spacing: 0.015em;
   cursor: pointer;
   transition: background 0.1s;
   border: none;
@@ -146,6 +148,7 @@
   font-weight: 500;
   color: var(--fg);
   flex: 1;
+  padding-left: 4px;
 }
 
 /* ── Stacked DEX icons ── */

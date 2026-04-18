@@ -9,6 +9,7 @@ import { MARKET_PAIRS } from '@/lib/pairs';
 import type { FundingApiResponse, FundingCellResult } from '@/types/funding';
 import type { TradeIntent } from '@/types/trading';
 import TradeExecutionModal from '@/components/TradeExecutionModal';
+import { LoaderOne } from '@/components/ui/unique-loader-components';
 import styles from './FundingScreener.module.css';
 
 const DEX_ICON = 36;
@@ -170,7 +171,14 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
   }, []);
 
   if (loading) {
-    return <div className={styles.loading}>LOADING FUNDING MATRIX…</div>;
+    return (
+      <div className={styles.loading}>
+        <div className="flex flex-row items-center gap-12">
+          <div className="text-6xl font-black tracking-[0.2em] text-foreground uppercase opacity-90 border-r-2 border-border pr-12 relative top-[4px]">SkewX</div>
+          <LoaderOne className="translate-y-[2px]" />
+        </div>
+      </div>
+    );
   }
 
   if (loadError && !data) {

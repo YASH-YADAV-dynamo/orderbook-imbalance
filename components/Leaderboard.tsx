@@ -4,6 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSmoothedLeaderboard } from '@/hooks/useSmoothedLeaderboard';
+import { GlassStickyCard } from '@/components/ui/glass-sticky-card';
+import { GlassButton } from '@/components/ui/glass-button';
+import { ExternalLink } from 'lucide-react';
 import styles from './Leaderboard.module.css';
 
 export interface LeaderboardEntry {
@@ -98,52 +101,61 @@ export default function Leaderboard({ entries }: { entries: LeaderboardEntry[] }
             const statusKey = entry.connected ? 'live' : entry.connecting ? 'wait' : 'off';
 
             return (
-              <div
+              <GlassStickyCard
                 key={entry.id}
-                className={styles.dataRow}
-                style={{ transform: `translateY(${entry.rank * ROW_H}px)` }}
+                className={styles.glassRow}
+                animate={{ y: entry.rank * ROW_H }}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                style={{ 
+                  height: `${ROW_H}px`,
+                  position: 'absolute',
+                }}
+                borderRadius="0px"
               >
-                <div className={`${styles.col} ${styles.rankCol}`}>{entry.rank + 1}</div>
+                <div className={styles.dataRow}>
+                  <div className={`${styles.col} ${styles.rankCol}`}>{entry.rank + 1}</div>
 
-                <div className={`${styles.col} ${styles.dexCol}`}>
-                  <ExchangeIcon id={entry.id} name={entry.name} color={entry.color} />
-                </div>
+                  <div className={`${styles.col} ${styles.dexCol}`}>
+                    <ExchangeIcon id={entry.id} name={entry.name} color={entry.color} />
+                  </div>
 
-                <div
-                  className={`${styles.col} ${styles.numCol} ${styles.imbCol}`}
-                  data-dir={entry.connected ? (isBid ? 'bid' : 'ask') : 'none'}
-                >
-                  {pct}
-                </div>
+                  <div
+                    className={`${styles.col} ${styles.numCol} ${styles.imbCol}`}
+                    data-dir={entry.connected ? (isBid ? 'bid' : 'ask') : 'none'}
+                  >
+                    {pct}
+                  </div>
 
-                <div
-                  className={`${styles.col} ${styles.dirCol}`}
-                  data-dir={entry.connected ? (isBid ? 'bid' : 'ask') : 'none'}
-                >
-                  {entry.connected ? dir : '—'}
-                </div>
+                  <div
+                    className={`${styles.col} ${styles.dirCol}`}
+                    data-dir={entry.connected ? (isBid ? 'bid' : 'ask') : 'none'}
+                  >
+                    {entry.connected ? dir : '—'}
+                  </div>
 
-                <div className={`${styles.col} ${styles.numCol} ${styles.volCol}`}>
-                  {entry.connected ? fv(entry.displayBidVol) : '—'}
-                </div>
+                  <div className={`${styles.col} ${styles.numCol} ${styles.volCol}`}>
+                    {entry.connected ? fv(entry.displayBidVol) : '—'}
+                  </div>
 
-                <div className={`${styles.col} ${styles.numCol} ${styles.volAskCol}`}>
-                  {entry.connected ? fv(entry.displayAskVol) : '—'}
-                </div>
+                  <div className={`${styles.col} ${styles.numCol} ${styles.volAskCol}`}>
+                    {entry.connected ? fv(entry.displayAskVol) : '—'}
+                  </div>
 
-                <div className={`${styles.col} ${styles.statusCol}`}>
-                  <span className={styles.statusDot} data-s={statusKey} />
-                  <span className={styles.statusText}>
-                    {entry.connected ? 'Live' : entry.connecting ? 'Connecting' : 'Offline'}
-                  </span>
-                </div>
+                  <div className={`${styles.col} ${styles.statusCol}`}>
+                    <span className={styles.statusDot} data-s={statusKey} />
+                    <span className={styles.statusText}>
+                      {entry.connected ? 'Live' : entry.connecting ? 'Connecting' : 'Offline'}
+                    </span>
+                  </div>
 
-                <div className={`${styles.col} ${styles.actionCol}`}>
-                  <Link href={entry.route} className={styles.openLink}>
-                    Open ↗
-                  </Link>
+                  <div className={`${styles.col} ${styles.actionCol}`}>
+                    <Link href={entry.route} className={styles.openLink}>
+                      <span>Open</span>
+                      <ExternalLink />
+                    </Link>
+                  </div>
                 </div>
-              </div>
+              </GlassStickyCard>
             );
           })}
         </div>
