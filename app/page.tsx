@@ -112,8 +112,8 @@ export default function LandingPage() {
           <span className={styles.navTitle}>Orderbook Imbalance</span>
         </div>
         <div className={styles.navActions}>
-          <GlassButton asChild size="sm">
-            <Link href="/arbitrage" className="flex items-center gap-2 no-underline text-inherit px-20 whitespace-nowrap">
+          <GlassButton asChild size="sm" className="w-[220px] h-[48px] !p-0">
+            <Link href="/arbitrage" className="flex items-center justify-center gap-2 no-underline text-inherit w-full h-full whitespace-nowrap">
               <Zap className="h-3 w-3" />
               <span>Funding arbitrage</span>
             </Link>
@@ -166,7 +166,7 @@ export default function LandingPage() {
                   value={formula}
                   onValueChange={val => setFormula(val as FormulaType)}
                 >
-                  <SelectTrigger className="w-[230px]">
+                  <SelectTrigger className="w-[240px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
