@@ -4,12 +4,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const glassButtonVariants = cva(
-  "relative isolate cursor-pointer rounded-[6px] transition-all duration-300 inline-flex items-center justify-center overflow-hidden font-mono no-underline text-inherit",
+  "relative isolate cursor-pointer rounded-full transition-all duration-300 inline-flex items-center justify-center overflow-hidden font-mono no-underline text-inherit",
   {
     variants: {
       size: {
         default: "text-base font-bold min-h-[44px]",
-        sm: "text-[11px] font-bold uppercase tracking-[0.15em] min-h-[38px]",
+        sm: "text-[11px] font-bold uppercase tracking-[0.15em] min-h-[38px] min-w-[180px]",
         lg: "text-lg font-bold min-h-[56px]",
         icon: "h-10 w-10 p-0",
       },
@@ -25,9 +25,9 @@ const glassButtonTextVariants = cva(
   {
     variants: {
       size: {
-        default: "px-16 py-2.5",
-        sm: "px-12 py-2",
-        lg: "px-20 py-4",
+        default: "px-20 py-2.5",
+        sm: "px-24 py-2",
+        lg: "px-32 py-4",
         icon: "flex h-10 w-10 items-center justify-center",
       },
     },
@@ -65,32 +65,22 @@ const GlassButton = React.forwardRef<HTMLButtonElement, GlassButtonProps>(
         <Comp
           className={cn(
             "glass-button",
-            glassButtonVariants({ size })
+            glassButtonVariants({ size }),
+            asChild && glassButtonTextVariants({ size })
           )}
           ref={ref}
           {...props}
         >
-          {asChild ? (
-            children
-          ) : (
-            <span
-              className={cn(
-                glassButtonTextVariants({ size }),
-                contentClassName
-              )}
-            >
-              {children}
-            </span>
-          )}
+          {children}
         </Comp>
 
         {/* Decorative Overlays (placed outside Slot to avoid Children.only error) */}
-        <div className="absolute inset-0 z-0 pointer-events-none rounded-[6px] overflow-hidden">
+        <div className="absolute inset-0 z-0 pointer-events-none rounded-full overflow-hidden">
            <div className="absolute inset-0 bg-white/5 opacity-50 group-hover:opacity-100 transition-opacity duration-300" />
         </div>
         
         {/* Soft Drop Shadow */}
-        <div className="glass-button-shadow absolute -bottom-1 left-1/2 h-full w-[90%] -translate-x-1/2 rounded-[6px] bg-black/20 blur-md transition-opacity duration-300 group-hover:opacity-100 opacity-0 pointer-events-none" />
+        <div className="glass-button-shadow absolute -bottom-1 left-1/2 h-full w-full -translate-x-1/2 rounded-full bg-black/10 blur-md transition-opacity duration-300 group-hover:opacity-100 opacity-0 pointer-events-none" />
       </div>
     );
   }

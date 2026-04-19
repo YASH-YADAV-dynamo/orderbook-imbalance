@@ -8,17 +8,17 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 6px 40px !important;
   border: 1px solid var(--grid);
-  border-radius: 6px;
+  border-radius: 999px !important;
   background: var(--bg-1);
   color: var(--fg);
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   font-family: var(--font-mono);
   cursor: pointer;
   transition: border-color 0.15s;
-  white-space: nowrap;
+  white-space: nowrap !important;
 }
 
 .trigger:hover {
@@ -41,7 +41,7 @@
   top: calc(100% + 4px);
   left: 0;
   z-index: 100;
-  width: 320px;
+  width: 280px;
   max-height: 380px;
   background: var(--bg-1);
   border: 1px solid var(--grid);
@@ -117,7 +117,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 12px 12px 24px;
+  padding: 8px 12px 8px 16px;
   letter-spacing: 0.015em;
   cursor: pointer;
   transition: background 0.1s;
@@ -144,8 +144,9 @@
 }
 
 .itemName {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   color: var(--fg);
   flex: 1;
   padding-left: 4px;
@@ -160,8 +161,8 @@
 }
 
 .dexStackIcon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   overflow: hidden;
   border: 1.5px solid var(--bg-1);
@@ -178,8 +179,8 @@
 }
 
 .dexStackImg {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   object-fit: cover;
   border-radius: 50%;
   display: block;

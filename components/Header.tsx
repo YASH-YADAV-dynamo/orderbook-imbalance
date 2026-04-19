@@ -5,6 +5,14 @@ import Link from 'next/link';
 import { AggLevel } from '@/types/orderbook';
 import { MarketPair } from '@/lib/pairs';
 import MarketSelector from '@/components/MarketSelector';
+import { ThemeSwitcher } from './ui/apple-liquid-glass-switcher';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import styles from './Header.module.css';
 
 const AGG_LEVELS: AggLevel[] = [1, 10, 100, 1000, 10000];
@@ -16,10 +24,12 @@ interface HeaderProps {
   connecting: boolean;
   error: string | null;
   darkMode: boolean;
+  theme?: 'light' | 'dark' | 'dim';
   onSymbolChange: (s: string) => void;
   onAggChange: (a: AggLevel) => void;
   onReconnect: () => void;
   onToggleTheme: () => void;
+  onSetTheme?: (t: 'light' | 'dark' | 'dim') => void;
   brandName?: string;
   brandMetric?: string;
   pairs?: MarketPair[];
@@ -29,7 +39,7 @@ interface HeaderProps {
 
 export default function Header({
   symbol, aggLevel, connected, connecting, error,
-  darkMode, onSymbolChange, onAggChange, onReconnect, onToggleTheme,
+  darkMode, theme = 'dark', onSymbolChange, onAggChange, onReconnect, onToggleTheme, onSetTheme,
   brandName = 'PACIFICA',
   brandMetric = 'ORDERBOOK IMBALANCE',
   pairs,
@@ -78,15 +88,21 @@ export default function Header({
         {showAgg && (
           <div className={styles.controlGroup}>
             <label className={styles.label}>AGG</label>
-            <select
-              className={styles.select}
-              value={aggLevel}
-              onChange={e => onAggChange(Number(e.target.value) as AggLevel)}
+            <Select
+              value={String(aggLevel)}
+              onValueChange={val => onAggChange(Number(val) as AggLevel)}
             >
-              {AGG_LEVELS.map(a => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
+              <SelectTrigger className="w-24 h-8 font-mono text-xs border border-white/10 bg-white/5 backdrop-blur-md">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AGG_LEVELS.map(a => (
+                  <SelectItem key={a} value={String(a)}>
+                    {a}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
 
@@ -94,13 +110,12 @@ export default function Header({
           ↺
         </button>
 
-        <button
-          className={styles.themeToggle}
-          onClick={onToggleTheme}
-          title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-        >
-          {darkMode ? '☀ LIGHT' : '◑ DARK'}
-        </button>
+        <ThemeSwitcher 
+          value={theme}
+          onValueChange={(val) => {
+            if (onSetTheme) onSetTheme(val);
+          }}
+        />
       </div>
 
       <div className={styles.statusGroup}>

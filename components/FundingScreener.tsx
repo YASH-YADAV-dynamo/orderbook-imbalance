@@ -174,7 +174,7 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
     return (
       <div className={styles.loading}>
         <div className="flex flex-row items-center gap-12">
-          <div className="text-6xl font-black tracking-[0.2em] text-foreground uppercase opacity-90 border-r-2 border-border pr-12 relative top-[4px]">SkewX</div>
+          <div className="text-6xl font-black tracking-[0.2em] uppercase opacity-90 border-r-2 border-border pr-12 relative top-[4px] loader-text">SkewX</div>
           <LoaderOne className="translate-y-[2px]" />
         </div>
       </div>
