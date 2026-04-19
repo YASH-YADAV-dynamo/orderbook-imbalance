@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { THEME } from '@/lib/theme-config';
 import styles from './page.module.css';
 
 const Leaderboard    = dynamic(() => import('@/components/Leaderboard'),    { ssr: false });
@@ -135,7 +136,7 @@ export default function LandingPage() {
             <div className={styles.widgetTitleBar}>
               <div className={styles.widgetTitleLeft}>
                 <span className={styles.widgetName}>Live Comparison</span>
-                <span className={styles.widgetHint}>
+                <span className={styles.widgetHint} style={{ fontFamily: THEME.typography.fontFamily.mono, color: THEME.colors.foregroundMuted }}>
                   ranked by strongest directional pressure
                 </span>
               </div>

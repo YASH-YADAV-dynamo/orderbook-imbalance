@@ -10,6 +10,7 @@ import type { FundingApiResponse, FundingCellResult } from '@/types/funding';
 import type { TradeIntent } from '@/types/trading';
 import TradeExecutionModal from '@/components/TradeExecutionModal';
 import { LoaderOne } from '@/components/ui/unique-loader-components';
+import { THEME } from '@/lib/theme-config';
 import styles from './FundingScreener.module.css';
 
 const DEX_ICON = 36;
@@ -204,8 +205,8 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
 
       <div className={styles.toolbar}>
         <div className={styles.toolbarLeft}>
-          <span className={styles.title}>FUNDING RATE ARBITRAGE SCREENER</span>
-          <span className={styles.subtitle}>
+          <span className={styles.title} style={{ color: THEME.colors.primary }}>FUNDING RATE ARBITRAGE SCREENER</span>
+          <span className={styles.subtitle} style={{ fontFamily: THEME.typography.fontFamily.mono }}>
             Funding values from each venue’s API (rate, not USD notional). Hover a cell for endpoint + field.
           </span>
         </div>
