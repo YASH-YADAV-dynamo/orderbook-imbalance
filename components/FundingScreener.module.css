@@ -200,6 +200,7 @@
   max-width: var(--sticky-col1);
   box-sizing: border-box;
   background: var(--bg-1);
+  border-right: 1px solid var(--grid);
 }
 
 .tr:nth-child(even) .tdSticky {
@@ -219,6 +220,7 @@
   max-width: var(--sticky-col2);
   box-sizing: border-box;
   background: var(--bg-1);
+  border-right: 1px solid var(--grid);
 }
 
 .tr:nth-child(even) .tdSticky2 {
