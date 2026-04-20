@@ -50,7 +50,7 @@ const selectTriggerVariants = cva(
     variants: {
       size: {
         sm: 'h-7 px-2.5 text-xs gap-1 rounded-md',
-        md: 'h-[36px] px-[20px] text-[15px] font-bold font-mono gap-1.5 rounded-[6px] border border-(--grid) bg-(--bg-1) text-(--fg) hover:border-(--accent) transition-colors',
+        md: 'h-[36px] px-[40px] text-[15px] font-bold font-mono gap-1.5 rounded-full !important whitespace-nowrap border border-(--grid) bg-(--bg-1) text-(--fg) hover:border-(--accent) transition-colors',
         lg: 'h-10 px-4 text-base gap-1.5 rounded-md',
       },
     },
@@ -152,33 +152,15 @@ function SelectLabel({ className, ...props }: React.ComponentProps<typeof Select
 }
 
 function SelectItem({ className, children, ...props }: React.ComponentProps<typeof SelectPrimitive.Item>) {
-  const { indicatorPosition, indicatorVisibility, indicator } = React.useContext(SelectContext);
-
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        'relative flex w-full cursor-default select-none items-center rounded-sm py-[14px] text-[15px] font-mono font-bold tracking-wide outline-hidden text-(--fg) hover:bg-(--bg-2) focus:bg-(--bg-2) data-disabled:pointer-events-none data-disabled:opacity-50 stagger-item transition-colors',
-        indicatorPosition === 'left' ? 'ps-14 pe-2' : 'pe-14 ps-2',
+        'relative flex w-full cursor-default select-none items-center rounded-sm py-[10px] px-5 text-[15px] font-mono font-bold tracking-wide outline-hidden text-(--fg) hover:bg-(--bg-2) focus:bg-(--bg-2) data-[state=checked]:bg-(--bg-2) data-[state=checked]:text-(--accent) data-disabled:pointer-events-none data-disabled:opacity-50 stagger-item transition-colors',
         className,
       )}
       {...props}
     >
-      {indicatorVisibility &&
-        (indicator && isValidElement(indicator) ? (
-          indicator
-        ) : (
-          <span
-            className={cn(
-              'absolute flex h-3.5 w-3.5 items-center justify-center',
-              indicatorPosition === 'left' ? 'start-2' : 'end-2',
-            )}
-          >
-            <SelectPrimitive.ItemIndicator>
-              <Check className="h-4 w-4 text-primary" />
-            </SelectPrimitive.ItemIndicator>
-          </span>
-        ))}
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
   );

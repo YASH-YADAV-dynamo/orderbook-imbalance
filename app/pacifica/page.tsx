@@ -7,14 +7,10 @@ import { useBinancePrice } from '@/hooks/useBinancePrice';
 import DashboardLayout from '@/components/DashboardLayout';
 import { ADAPTERS } from '@/lib/dexAdapters';
 import { getPairsForAdapter } from '@/lib/pairs';
-import { useAppStore } from '@/store/useAppStore';
 
 const PAIRS = getPairsForAdapter('pacifica');
 
 export default function PacificaDashboard() {
-  const darkMode       = useAppStore(s => s.darkMode);
-  const toggleDarkMode = useAppStore(s => s.toggleDarkMode);
-
   const [symbol,   setSymbol]   = useState('SOL/USD');
   const [aggLevel, setAggLevel] = useState<AggLevel>(1);
   const [formula,  setFormula]  = useState<FormulaType>('distanceWeighted');
@@ -38,7 +34,6 @@ export default function PacificaDashboard() {
       onFormulaChange={setFormula}
       onParamsChange={p => setParams(prev => ({ ...prev, ...p }))}
       aggLevel={aggLevel} onAggChange={setAggLevel}
-      darkMode={darkMode} onToggleTheme={toggleDarkMode}
     />
   );
 }

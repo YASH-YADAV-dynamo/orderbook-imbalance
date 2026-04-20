@@ -43,9 +43,12 @@ interface DashboardLayoutProps {
   aggLevel?:   AggLevel;
   onAggChange?: (a: AggLevel) => void;
 
-  darkMode:      boolean;
-  onToggleTheme: () => void;
+  /** Legacy props */
+  darkMode?: boolean;
+  onToggleTheme?: () => void;
 }
+
+import { useAppStore } from '@/store/useAppStore';
 
 export default function DashboardLayout({
   brandName,
@@ -57,11 +60,15 @@ export default function DashboardLayout({
   symbol, onSymbolChange,
   formula, params, onFormulaChange, onParamsChange,
   aggLevel = 1, onAggChange,
-  darkMode, onToggleTheme,
 }: DashboardLayoutProps) {
+  const theme    = useAppStore(s => s.theme);
+  const setTheme  = useAppStore(s => s.setTheme);
+  const darkMode   = useAppStore(s => s.darkMode);
+  const toggleDarkMode = useAppStore(s => s.toggleDarkMode);
+
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-  }, [darkMode]);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   return (
     <div className={styles.shell}>
@@ -72,10 +79,12 @@ export default function DashboardLayout({
         connecting={state.connecting}
         error={state.error}
         darkMode={darkMode}
+        theme={theme}
         onSymbolChange={onSymbolChange}
         onAggChange={onAggChange ?? (() => {})}
         onReconnect={reconnect}
-        onToggleTheme={onToggleTheme}
+        onToggleTheme={toggleDarkMode}
+        onSetTheme={setTheme}
         brandName={brandName}
         brandMetric={brandMetric}
         pairs={supportedPairs}

@@ -200,11 +200,12 @@
   max-width: var(--sticky-col1);
   box-sizing: border-box;
   background: var(--bg-1);
-  box-shadow: 4px 0 8px -4px rgba(0, 0, 0, 0.35);
+  border-right: 1px solid var(--grid);
 }
 
 .tr:nth-child(even) .tdSticky {
-  background: #12121a;
+  background: var(--bg-1);
+  opacity: 0.98;
 }
 
 [data-theme='light'] .tr:nth-child(even) .tdSticky {
@@ -220,11 +221,12 @@
   max-width: var(--sticky-col2);
   box-sizing: border-box;
   background: var(--bg-1);
-  box-shadow: 4px 0 8px -4px rgba(0, 0, 0, 0.35);
+  border-right: 1px solid var(--grid);
 }
 
 .tr:nth-child(even) .tdSticky2 {
-  background: #12121a;
+  background: var(--bg-1);
+  opacity: 0.98;
 }
 
 [data-theme='light'] .tr:nth-child(even) .tdSticky2 {
@@ -240,6 +242,7 @@
 .maxArb {
   text-align: left;
   color: var(--bid);
+  font-weight: 700;
 }
 
 .maxArbEmpty {
@@ -268,8 +271,8 @@
 }
 
 .cellInner[data-tag='buy'] {
-  background: linear-gradient(180deg, rgba(0, 255, 136, 0.05) 0%, rgba(0, 255, 136, 0.01) 100%);
-  border: 1px solid rgba(0, 255, 136, 0.1);
+  background: linear-gradient(180deg, var(--buy-bg) 0%, rgba(0, 255, 136, 0.05) 100%);
+  border: 1px solid var(--buy-border);
   box-shadow: 
     inset 0 1px 1px rgba(255, 255, 255, 0.04),
     inset 0 -2px 6px rgba(0, 0, 0, 0.15),
@@ -277,17 +280,18 @@
 }
 
 .cellInner[data-tag='buy']:hover {
-  background: linear-gradient(180deg, rgba(0, 255, 136, 0.09) 0%, rgba(0, 255, 136, 0.02) 100%);
-  border: 1px solid rgba(0, 255, 136, 0.25);
+  background: linear-gradient(180deg, rgba(0, 255, 136, 0.25) 0%, rgba(0, 255, 136, 0.1) 100%);
+  border: 1px solid rgba(0, 255, 136, 0.5);
   box-shadow: 
-    inset 0 2px 12px rgba(255, 255, 255, 0.2),
+    inset 0 2px 12px rgba(0, 255, 136, 0.1),
     inset 0 -2px 6px rgba(0, 0, 0, 0.25),
-    0 6px 12px rgba(0, 0, 0, 0.2);
+    0 8px 16px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
 }
 
 .cellInner[data-tag='sell'] {
-  background: linear-gradient(180deg, rgba(255, 51, 102, 0.05) 0%, rgba(255, 51, 102, 0.01) 100%);
-  border: 1px solid rgba(255, 51, 102, 0.1);
+  background: linear-gradient(180deg, var(--sell-bg) 0%, rgba(255, 51, 102, 0.05) 100%);
+  border: 1px solid var(--sell-border);
   box-shadow: 
     inset 0 1px 1px rgba(255, 255, 255, 0.04),
     inset 0 -2px 6px rgba(0, 0, 0, 0.15),
@@ -295,17 +299,19 @@
 }
 
 .cellInner[data-tag='sell']:hover {
-  background: linear-gradient(180deg, rgba(255, 51, 102, 0.09) 0%, rgba(255, 51, 102, 0.02) 100%);
-  border: 1px solid rgba(255, 51, 102, 0.25);
+  background: linear-gradient(180deg, rgba(255, 51, 102, 0.25) 0%, rgba(255, 51, 102, 0.1) 100%);
+  border: 1px solid rgba(255, 51, 102, 0.5);
   box-shadow: 
-    inset 0 2px 12px rgba(255, 255, 255, 0.2),
+    inset 0 2px 12px rgba(255, 51, 102, 0.1),
     inset 0 -2px 6px rgba(0, 0, 0, 0.25),
-    0 6px 12px rgba(0, 0, 0, 0.2);
+    0 8px 16px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
 }
 
 .rate {
   font-size: 14px;
   line-height: 1.25;
+  font-weight: 700;
 }
 
 .rate[data-sign='pos'] {
@@ -323,6 +329,7 @@
 .cd {
   font-size: 12px;
   color: var(--fg-muted);
+  opacity: 0.8;
 }
 
 .pill {
@@ -330,19 +337,21 @@
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  padding: 3px 8px;
-  border-radius: 6px;
+  padding: 4px 14px;
+  border-radius: 999px !important;
   border: none;
 }
 
 .pillBuy {
-  background: rgba(0, 255, 136, 0.2);
+  background: rgba(0, 255, 136, 0.4);
   color: var(--bid);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .pillSell {
-  background: rgba(255, 51, 102, 0.2);
+  background: rgba(255, 51, 102, 0.4);
   color: var(--ask);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .pillAction {

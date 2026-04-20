@@ -12,6 +12,7 @@ import { LeaderboardEntry } from '@/components/Leaderboard';
 import OrderbookInfoPanel from '@/components/OrderbookInfoPanel';
 import dynamic from 'next/dynamic';
 import { GlassButton } from '@/components/ui/glass-button';
+import { ThemeSwitcher } from '@/components/ui/apple-liquid-glass-switcher';
 import { Zap, Sun, Moon } from 'lucide-react';
 
 import {
@@ -21,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { THEME } from '@/lib/theme-config';
 import styles from './page.module.css';
 
 const Leaderboard    = dynamic(() => import('@/components/Leaderboard'),    { ssr: false });
@@ -33,18 +35,18 @@ const FORMULA_NAMES: FormulaType[] = [
 const ALL_PAIRS = getAllPairs();
 
 export default function LandingPage() {
-  const darkMode       = useAppStore(s => s.darkMode);
-  const toggleDarkMode = useAppStore(s => s.toggleDarkMode);
-  const symbol         = useAppStore(s => s.leaderboardSymbol);
-  const formula        = useAppStore(s => s.leaderboardFormula);
-  const params         = useAppStore(s => s.leaderboardParams);
-  const setSymbol      = useAppStore(s => s.setLeaderboardSymbol);
-  const setFormula     = useAppStore(s => s.setLeaderboardFormula);
-  const setParams      = useAppStore(s => s.setLeaderboardParams);
+  const theme    = useAppStore(s => s.theme);
+  const setTheme  = useAppStore(s => s.setTheme);
+  const symbol    = useAppStore(s => s.leaderboardSymbol);
+  const formula   = useAppStore(s => s.leaderboardFormula);
+  const params    = useAppStore(s => s.leaderboardParams);
+  const setSymbol = useAppStore(s => s.setLeaderboardSymbol);
+  const setFormula = useAppStore(s => s.setLeaderboardFormula);
+  const setParams = useAppStore(s => s.setLeaderboardParams);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-  }, [darkMode]);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   const refMid = useBinancePrice(symbol);
 
@@ -111,30 +113,17 @@ export default function LandingPage() {
           <span className={styles.navTitle}>Orderbook Imbalance</span>
         </div>
         <div className={styles.navActions}>
-          <GlassButton asChild size="sm" contentClassName="flex items-center gap-2">
-            <Link href="/arbitrage" className="flex items-center gap-2 no-underline text-inherit">
+          <GlassButton asChild size="sm" className="w-[220px] h-[48px] !p-0">
+            <Link href="/arbitrage" className="flex items-center justify-center gap-2 no-underline text-inherit w-full h-full whitespace-nowrap">
               <Zap className="h-3 w-3" />
               <span>Funding arbitrage</span>
             </Link>
           </GlassButton>
           
-          <GlassButton 
-            size="sm" 
-            onClick={toggleDarkMode}
-            contentClassName="flex items-center gap-2"
-          >
-            {darkMode ? (
-              <>
-                <Sun className="h-3 w-3" />
-                <span>Light</span>
-              </>
-            ) : (
-              <>
-                <Moon className="h-3 w-3" />
-                <span>Dark</span>
-              </>
-            )}
-          </GlassButton>
+          <ThemeSwitcher 
+            value={theme}
+            onValueChange={(val) => setTheme(val)}
+          />
         </div>
       </nav>
 
@@ -147,7 +136,7 @@ export default function LandingPage() {
             <div className={styles.widgetTitleBar}>
               <div className={styles.widgetTitleLeft}>
                 <span className={styles.widgetName}>Live Comparison</span>
-                <span className={styles.widgetHint}>
+                <span className={styles.widgetHint} style={{ fontFamily: THEME.typography.fontFamily.mono, color: THEME.colors.foregroundMuted }}>
                   ranked by strongest directional pressure
                 </span>
               </div>
@@ -178,7 +167,7 @@ export default function LandingPage() {
                   value={formula}
                   onValueChange={val => setFormula(val as FormulaType)}
                 >
-                  <SelectTrigger className="w-[230px]">
+                  <SelectTrigger className="w-[240px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

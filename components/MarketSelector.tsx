@@ -141,8 +141,8 @@ export default function MarketSelector({
                             <Image
                               src={`/exchanges/${aid}.png`}
                               alt={aid}
-                              width={20}
-                              height={20}
+                              width={16}
+                              height={16}
                               className={styles.dexStackImg}
                               unoptimized
                             />

@@ -18,19 +18,19 @@ export const LoaderOne = ({ className }: { className?: string }) => {
         initial={{ y: 0 }}
         animate={{ y: [0, 20, 0] }}
         transition={transition(0)}
-        className="h-8 w-8 rounded-full border border-neutral-300 bg-gradient-to-b from-neutral-400 to-neutral-300 shadow-lg"
+        className="h-8 w-8 rounded-full border border-neutral-300 bg-gradient-to-b from-neutral-400 to-neutral-300 shadow-lg dark:border-neutral-700 dark:from-neutral-600 dark:to-neutral-800 loader-dot"
       />
       <motion.div
         initial={{ y: 0 }}
         animate={{ y: [0, 20, 0] }}
         transition={transition(1)}
-        className="h-8 w-8 rounded-full border border-neutral-300 bg-gradient-to-b from-neutral-400 to-neutral-300 shadow-lg"
+        className="h-8 w-8 rounded-full border border-neutral-300 bg-gradient-to-b from-neutral-400 to-neutral-300 shadow-lg dark:border-neutral-700 dark:from-neutral-600 dark:to-neutral-800 loader-dot"
       />
       <motion.div
         initial={{ y: 0 }}
         animate={{ y: [0, 20, 0] }}
         transition={transition(2)}
-        className="h-8 w-8 rounded-full border border-neutral-300 bg-gradient-to-b from-neutral-400 to-neutral-300 shadow-lg"
+        className="h-8 w-8 rounded-full border border-neutral-300 bg-gradient-to-b from-neutral-400 to-neutral-300 shadow-lg dark:border-neutral-700 dark:from-neutral-600 dark:to-neutral-800 loader-dot"
       />
     </div>
   );
