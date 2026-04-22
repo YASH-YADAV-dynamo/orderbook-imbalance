@@ -12,8 +12,9 @@ import { LeaderboardEntry } from '@/components/Leaderboard';
 import OrderbookInfoPanel from '@/components/OrderbookInfoPanel';
 import dynamic from 'next/dynamic';
 import { GlassButton } from '@/components/ui/glass-button';
+import { NavTabs } from '@/components/ui/NavTabs';
 import { ThemeSwitcher } from '@/components/ui/apple-liquid-glass-switcher';
-import { Zap, Sun, Moon } from 'lucide-react';
+import { Sun, Moon } from 'lucide-react';
 
 import {
   Select,
@@ -110,15 +111,10 @@ export default function LandingPage() {
       <nav className={styles.nav}>
         <div className={styles.navBrand}>
           <span className={styles.navDot} />
-          <span className={styles.navTitle}>Orderbook Imbalance</span>
+          <span className={styles.navTitle}>skewX</span>
         </div>
         <div className={styles.navActions}>
-          <GlassButton asChild size="sm" className="w-[220px] h-[48px] !p-0">
-            <Link href="/arbitrage" className="flex items-center justify-center gap-2 no-underline text-inherit w-full h-full whitespace-nowrap">
-              <Zap className="h-3 w-3" />
-              <span>Funding arbitrage</span>
-            </Link>
-          </GlassButton>
+          <NavTabs />
           
           <ThemeSwitcher 
             value={theme}
