@@ -1,0 +1,200 @@
+.container {
+  background-color: transparent;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 400px;
+}
+
+.loadingWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 400px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.tableWrapper {
+  overflow-y: auto;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.tableWrapper::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tableWrapper::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 1px; /* Space between rows */
+  text-align: left;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg);
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 12px 16px;
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  padding: 8px 16px;
+  vertical-align: center;
+}
+
+.row {
+  transition: opacity 0.2s ease;
+}
+
+.longRow {
+  background-color: rgba(239, 68, 68, 0.15); /* Dark Red background */
+}
+
+.shortRow {
+  background-color: rgba(16, 185, 129, 0.15); /* Dark Green background */
+}
+
+.row:hover {
+  filter: brightness(1.2);
+}
+
+/* ── Symbol Cell ────────────────────────────────────────────────────── */
+
+.symbolCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dexIcon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.hlIcon {
+  background: #00e5ff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hlInner {
+  width: 8px;
+  height: 8px;
+  background: #000;
+  border-radius: 50%;
+}
+
+.okxIcon {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  padding: 3px;
+  background: #fff;
+  border-radius: 2px;
+}
+
+.okxDot {
+  width: 6px;
+  height: 6px;
+  background: #000;
+  border-radius: 1px;
+}
+
+.symbolInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.symbolName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+
+.dexName {
+  font-size: 10px;
+  color: var(--fg-muted);
+  text-transform: capitalize;
+}
+
+.sideBadge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+.sideLong {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.sideShort {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+/* ── Data Columns ────────────────────────────────────────────────────── */
+
+.priceText {
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  color: var(--fg);
+}
+
+.valueText {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--fg);
+}
+
+.timeText {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--fg-muted);
+}
+
+/* ── Column Alignment ────────────────────────────────────────────────── */
+
+.colSymbol { width: 45%; }
+.colPrice { width: 20%; text-align: right; }
+.colValue { width: 20%; text-align: right; }
+.colTime { width: 15%; text-align: right; }
+
+.table th.colPrice,
+.table th.colValue,
+.table th.colTime {
+  text-align: right;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 48px !important;
+  color: var(--fg-muted) !important;
+  font-style: italic;
+}

@@ -6,6 +6,7 @@ import { AggLevel } from '@/types/orderbook';
 import { MarketPair } from '@/lib/pairs';
 import MarketSelector from '@/components/MarketSelector';
 import { ThemeSwitcher } from './ui/apple-liquid-glass-switcher';
+import { NavTabs } from './ui/NavTabs';
 import {
   Select,
   SelectContent,
@@ -66,12 +67,18 @@ export default function Header({
             ←
           </Link>
         )}
-        <span className={styles.brandName}>{brandName}</span>
-        <span className={styles.divider}>/</span>
+        {brandName && (
+          <>
+            <span className={styles.brandName}>{brandName}</span>
+            <span className={styles.divider}>/</span>
+          </>
+        )}
         <span className={styles.metric}>{brandMetric}</span>
       </div>
 
       <div className={styles.controls}>
+        <NavTabs />
+        
         <div className={styles.controlGroup}>
           <label className={styles.label}>MARKET</label>
           {pairs ? (
@@ -116,12 +123,6 @@ export default function Header({
             if (onSetTheme) onSetTheme(val);
           }}
         />
-      </div>
-
-      <div className={styles.statusGroup}>
-        <span className={`${styles.statusDot} ${statusClass}`} />
-        <span className={`${styles.statusLabel} ${statusClass}`}>{statusLabel}</span>
-        <span className={styles.clock}>{clock}</span>
       </div>
     </header>
   );

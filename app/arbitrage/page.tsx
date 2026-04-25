@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useAppStore } from '@/store/useAppStore';
-import { GlassButton } from '@/components/ui/glass-button';
+import { NavTabs } from '@/components/ui/NavTabs';
 import { ThemeSwitcher } from '@/components/ui/apple-liquid-glass-switcher';
-import { ArrowLeft, Sun, Moon } from 'lucide-react';
 import styles from './page.module.css';
 
 const FundingScreener = dynamic(() => import('@/components/FundingScreener'), { ssr: false });
@@ -27,12 +25,7 @@ export default function ArbitragePage() {
           <span className={styles.navTitle}>Funding rate arbitrage</span>
         </div>
         <div className={styles.navActions}>
-          <GlassButton asChild size="sm" className="w-[220px] h-[48px] !p-0">
-            <Link href="/" className="flex items-center justify-center gap-2 no-underline text-inherit w-full h-full whitespace-nowrap">
-              <ArrowLeft className="h-3 w-3" />
-              <span>Orderbook imbalance</span>
-            </Link>
-          </GlassButton>
+          <NavTabs />
           
           <ThemeSwitcher 
             value={theme}

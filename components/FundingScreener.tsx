@@ -5,11 +5,12 @@ import { ADAPTERS } from '@/lib/dexAdapters';
 import type { AdapterId } from '@/lib/dexAdapters';
 import { FUNDING_ADAPTER_ORDER } from '@/lib/funding/buildMatrix';
 import { FUNDING_RATE_DEADBAND } from '@/lib/funding/constants';
+import { formatRateAsPercent } from '@/lib/funding/display';
 import { MARKET_PAIRS } from '@/lib/pairs';
 import type { FundingApiResponse, FundingCellResult } from '@/types/funding';
 import type { TradeIntent } from '@/types/trading';
 import TradeExecutionModal from '@/components/TradeExecutionModal';
-import { LoaderOne } from '@/components/ui/unique-loader-components';
+import { PremiumLoader } from '@/components/ui/PremiumLoader';
 import { THEME } from '@/lib/theme-config';
 import styles from './FundingScreener.module.css';
 
@@ -171,17 +172,6 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
     return () => clearInterval(id);
   }, []);
 
-  if (loading) {
-    return (
-      <div className={styles.loading}>
-        <div className="flex flex-row items-center gap-12">
-          <div className="text-6xl font-black tracking-[0.2em] uppercase opacity-90 border-r-2 border-border pr-12 relative top-[4px] loader-text">SkewX</div>
-          <LoaderOne className="translate-y-[2px]" />
-        </div>
-      </div>
-    );
-  }
-
   if (loadError && !data) {
     return (
       <div className={styles.wrap}>
@@ -192,8 +182,6 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
       </div>
     );
   }
-
-  if (!data) return null;
 
   return (
     <div className={styles.wrap}>
@@ -210,12 +198,19 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
             Funding values from each venue’s API (rate, not USD notional). Hover a cell for endpoint + field.
           </span>
         </div>
-        <span className={styles.updated}>
-          Updated {new Date(data.updatedAt).toLocaleTimeString()}
-        </span>
+        {data && (
+          <span className={styles.updated}>
+            Updated {new Date(data.updatedAt).toLocaleTimeString()}
+          </span>
+        )}
       </div>
 
       <div className={styles.tableOuter}>
+        {loading && !data && (
+          <div className={styles.loadingOverlay}>
+            <PremiumLoader compact text="SYNCING FUNDING RATES" />
+          </div>
+        )}
         <table className={styles.table}>
           <thead>
             <tr>
@@ -247,31 +242,55 @@ export default function FundingScreener({ darkMode: _darkMode = true }: FundingS
             </tr>
           </thead>
           <tbody>
-            {data.pairs.map(row => (
-              <tr key={row.symbol} className={styles.tr}>
-                <td className={`${styles.td} ${styles.tdSticky}`}>
-                  <span className={styles.sym}>{row.symbol}</span>
-                </td>
-                <td className={`${styles.td} ${styles.tdSticky2} ${styles.maxArb}`}>
-                  {row.maxArbRate != null ? (
-                    `${(row.maxArbRate * 100).toFixed(4)}%`
-                  ) : (
-                    <span className={styles.maxArbEmpty}>—</span>
-                  )}
-                </td>
-                {FUNDING_ADAPTER_ORDER.map(id => (
-                  <td key={id} className={`${styles.td} ${styles.cell}`}>
-                    <FundingCell
-                      adapterId={id}
-                      symbol={row.symbol}
-                      cell={row.cells[id]}
-                      nowMs={nowMs}
-                      onSignalClick={setTradeIntent}
-                    />
+            {data ? (
+              data.pairs.map(row => (
+                <tr key={row.symbol} className={styles.tr}>
+                  <td className={`${styles.td} ${styles.tdSticky}`}>
+                    <span className={styles.sym}>{row.symbol}</span>
                   </td>
-                ))}
-              </tr>
-            ))}
+                  <td className={`${styles.td} ${styles.tdSticky2} ${styles.maxArb}`}>
+                    {row.maxArbRate != null ? (
+                      <span className={styles.rate} data-sign={rateSign(row.maxArbRate)}>
+                        {formatRateAsPercent(row.maxArbRate)}
+                      </span>
+                    ) : (
+                      <span className={styles.maxArbEmpty}>—</span>
+                    )}
+                  </td>
+                  {FUNDING_ADAPTER_ORDER.map(adapterId => (
+                    <td key={adapterId} className={styles.cell}>
+                      <FundingCell
+                        adapterId={adapterId}
+                        symbol={row.symbol}
+                        cell={row.cells[adapterId]}
+                        nowMs={nowMs}
+                        onSignalClick={setTradeIntent}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              // Skeleton rows
+              Array.from({ length: 12 }).map((_, i) => (
+                <tr key={i} className={styles.tr}>
+                  <td className={`${styles.td} ${styles.tdSticky}`}>
+                    <div className="skeleton" style={{ width: '60px', height: '14px' }} />
+                  </td>
+                  <td className={`${styles.td} ${styles.tdSticky2}`}>
+                    <div className="skeleton" style={{ width: '40px', height: '14px' }} />
+                  </td>
+                  {FUNDING_ADAPTER_ORDER.map(id => (
+                    <td key={id} className={styles.cell}>
+                      <div className={styles.cellInner}>
+                        <div className="skeleton" style={{ width: '50px', height: '12px', marginBottom: '8px' }} />
+                        <div className="skeleton" style={{ width: '30px', height: '10px' }} />
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
