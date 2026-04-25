@@ -8,7 +8,7 @@ export interface LiquidationEvent {
   amount_token: number                 // size in base token
   notional_usd: number                 // price × amount
   timestamp_ms: number
-  raw_order_id: number                 // monotonic cursor for dedup
+  raw_order_id: string | number        // monotonic cursor for dedup
   raw?: Record<string, unknown>        // original payload if needed
 }
 

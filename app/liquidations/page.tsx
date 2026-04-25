@@ -2,52 +2,57 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useAppStore } from '@/store/useAppStore';
-import { NavTabs } from '@/components/ui/NavTabs';
-import { ThemeSwitcher } from '@/components/ui/apple-liquid-glass-switcher';
 import { useLiquidationsFeed } from '@/hooks/useLiquidationsFeed';
-import { MetricsBar, VolumeChart, FilterBar, DataTable, Treemap, LiquidationMatrix } from '@/components/liquidations';
+import { MetricsBar, DataTable, LiquidationMatrix, ExchangeBreakdown, Treemap } from '@/components/liquidations';
+import Header from '@/components/Header';
 import styles from './page.module.css';
 
 export default function LiquidationsPage() {
   const theme = useAppStore(s => s.theme);
   const setTheme = useAppStore(s => s.setTheme);
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
-
   const { 
     events, 
     metrics, 
-    chartData, 
-    symbolsTreemapData,
-    exchangesTreemapData,
-    matrixData,
     uniqueSymbols,
     uniqueExchanges,
+    activeExchanges,
+    matrixData,
+    symbolsTreemapData,
+    exchangesTreemapData,
     isLoading, 
     isLive, 
     toggleLive,
+    setIsHydrated,
+    setIsLoading,
     lastUpdate 
-  } = useLiquidationsFeed('BTC');
+  } = useLiquidationsFeed();
+
+  const handleRefresh = () => {
+    setIsHydrated(false);
+    setIsLoading(true);
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [sideFilter, setSideFilter] = useState('all');
   const [mounted, setMounted] = useState(false);
 
+  // Initial mount
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Theme synchronization
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   const filteredEvents = useMemo(() => {
+    if (!events) return [];
     return events.filter((e: any) => {
       if (searchQuery && !e.symbol.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-      if (typeFilter !== 'all' && e.liq_type !== typeFilter) return false;
-      if (sideFilter !== 'all' && e.side !== sideFilter) return false;
       return true;
     });
-  }, [events, searchQuery, typeFilter, sideFilter]);
+  }, [events, searchQuery]);
 
   const formattedUpdate = useMemo(() => {
     if (!lastUpdate) return '--:--:-- UTC';
@@ -57,96 +62,133 @@ export default function LiquidationsPage() {
 
   return (
     <div className={styles.page}>
-      <nav className={styles.nav}>
-        <div className={styles.navBrand}>
-          <span className={styles.navDot} />
-          <span className={styles.navTitle}>skewX</span>
-        </div>
-        <div className={styles.navActions}>
-          <NavTabs />
-          
-          <ThemeSwitcher 
-            value={theme}
-            onValueChange={(val) => setTheme(val)}
-          />
-        </div>
-      </nav>
+      <Header
+        symbol="ALL"
+        aggLevel={1}
+        connected={isLive}
+        connecting={isLoading}
+        error={null}
+        darkMode={theme === 'dark'}
+        theme={theme}
+        onSymbolChange={() => {}}
+        onAggChange={() => {}}
+        onReconnect={handleRefresh}
+        onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+        onSetTheme={setTheme}
+        brandName=""
+        brandMetric="GLOBAL LIQUIDATIONS"
+        showAgg={false}
+        backHref="/"
+      />
 
       <main className={styles.main}>
-        {/* Zone A: Header Strip */}
+        {/* Header Strip */}
         <div className={styles.headerStrip}>
-          <h1 className={styles.pageTitle}>Liquidations</h1>
+          <div className={styles.titleGroup}>
+            <h1 className={styles.pageTitle}>Global Liquidations</h1>
+            <p className={styles.pageSubtitle}>Real-time cross-exchange liquidation monitoring</p>
+          </div>
+          
           <div className={styles.liveStatus}>
+            <div className={styles.sourceBadges}>
+              {['BINANCE', 'OKX', 'BYBIT', 'BITGET', 'GATE.IO', 'HTX', 'HYPERLIQUID'].map(ex => (
+                <span key={ex} className={styles.sourceBadge}>
+                  {ex} {activeExchanges.includes(ex) ? 'ACTIVE' : 'READY'}
+                </span>
+              ))}
+            </div>
+            
             <button 
-              onClick={toggleLive}
-              className={`${styles.liveBadge} ${isLive ? styles.liveBadgeActive : styles.liveBadgePaused}`}
+              onClick={handleRefresh}
+              className={styles.refreshButton}
+              title="Refresh Data"
+              disabled={isLoading}
             >
-              <span className={styles.pulseDot} />
-              {isLive ? 'LIVE' : 'PAUSED'}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isLoading ? styles.spinning : ''}>
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
             </button>
+
             <span className={styles.timestamp} suppressHydrationWarning>
-              Updated: {mounted ? formattedUpdate : '--:--:-- UTC'}
+              {mounted ? formattedUpdate : '--:--:-- UTC'}
             </span>
           </div>
         </div>
 
-        {/* Zone B: Metrics Bar */}
-        <div className={styles.section}>
-          <MetricsBar metrics={metrics} isLoading={isLoading} />
-        </div>
+        {/* Metrics Overview */}
+        <MetricsBar metrics={metrics} isLoading={isLoading} />
 
-        {/* Zone C: Side-by-Side Treemaps */}
-        <div className={styles.treemapSection}>
-          <div className={styles.treemapWrapper}>
-            <Treemap 
-              data={symbolsTreemapData} 
-              title="Symbols Liquidation Distribution" 
-              subtitle="24h liquidation volume" 
-              height={360} 
-            />
-          </div>
-          <div className={styles.treemapWrapper}>
-            <Treemap 
-              data={exchangesTreemapData} 
-              title="Exchanges Liquidation Distribution" 
-              subtitle="24h liquidation volume" 
-              height={360} 
-            />
-          </div>
-        </div>
-
-        {/* Zone D: Heatmap Matrix */}
-        <div className={styles.section}>
-          <h3 className={styles.matrixTitle}>Liquidations Matrix</h3>
-          <LiquidationMatrix 
-            data={matrixData} 
-            exchanges={uniqueExchanges} 
-            symbols={uniqueSymbols} 
-          />
-        </div>
-
-        {/* Zone E: Real-time Event Stream and Filters */}
-        <div className={styles.feedAndChartSection}>
-          <div className={styles.eventFeedColumn}>
-            <div className={styles.section}>
-              <FilterBar 
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                typeFilter={typeFilter}
-                setTypeFilter={setTypeFilter}
-                sideFilter={sideFilter}
-                setSideFilter={setSideFilter}
-              />
+        {/* Primary Dashboard Grid */}
+        <div className={styles.dashboardGrid}>
+          {/* Main Liquidation Matrix */}
+          <div className={`${styles.section} ${styles.matrixArea}`}>
+            <div className={styles.sectionHeader}>
+              <h3 className={styles.sectionTitle}>Liquidation Matrix</h3>
+              <span className={styles.sectionSubtitle}>Intensity scaled by 24h volume</span>
             </div>
-            <div className={styles.tableSection}>
+            <LiquidationMatrix 
+              data={matrixData} 
+              exchanges={uniqueExchanges} 
+              symbols={uniqueSymbols} 
+              isLoading={isLoading}
+            />
+          </div>
+
+          {/* Live Feed and Search */}
+          <div className={`${styles.section} ${styles.feedArea}`}>
+            <div className={styles.sectionHeader}>
+              <div className={styles.feedHeaderGroup}>
+                <div className={styles.feedTitleGroup}>
+                  <h3 className={styles.sectionTitle}>Real-Time Liquidations</h3>
+                  <p className={styles.sectionStats}>
+                    {filteredEvents.length.toLocaleString()} events 
+                    {searchQuery ? ' (1 filter)' : ''}
+                  </p>
+                </div>
+                <input 
+                  type="text" 
+                  placeholder="Search symbol..." 
+                  className={styles.miniSearch}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className={styles.tableArea}>
               <DataTable events={filteredEvents} isLoading={isLoading} />
             </div>
           </div>
-          
-          <div className={styles.chartColumn}>
-            <div className={styles.chartArea}>
-              <VolumeChart data={chartData} isLoading={isLoading} />
+        </div>
+
+        {/* Distribution Maps Row (Matching Screenshot) */}
+        <div className={styles.secondaryGrid}>
+          <div className={`${styles.section} ${styles.treemapArea}`}>
+            <Treemap 
+              data={symbolsTreemapData} 
+              title="Symbols Liquidation Distribution"
+              isLoading={isLoading} 
+            />
+          </div>
+
+          <div className={`${styles.section} ${styles.treemapArea}`}>
+            <Treemap 
+              data={exchangesTreemapData} 
+              title="Exchanges Liquidation Distribution"
+              isLoading={isLoading} 
+            />
+          </div>
+
+          <div className={`${styles.section} ${styles.treemapArea}`}>
+            <div className={styles.sectionHeader}>
+              <h3 className={styles.sectionTitle}>Exchange Breakdown</h3>
+              <span className={styles.sectionSubtitle}>24h volume & event frequency</span>
             </div>
+            <ExchangeBreakdown 
+              data={exchangesTreemapData} 
+              isLoading={isLoading} 
+            />
           </div>
         </div>
       </main>

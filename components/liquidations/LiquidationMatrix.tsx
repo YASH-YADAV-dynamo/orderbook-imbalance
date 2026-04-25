@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { THEME } from '@/lib/theme-config';
+import { PremiumLoader } from '@/components/ui/PremiumLoader';
 
 export interface MatrixCell {
   exchange: string;
@@ -13,20 +14,78 @@ interface LiquidationMatrixProps {
   data: MatrixCell[];
   exchanges: string[];
   symbols: string[];
+  isLoading?: boolean;
 }
 
-export function LiquidationMatrix({ data, exchanges, symbols }: LiquidationMatrixProps) {
-  // Format numbers to M, K
+export function LiquidationMatrix({ data, exchanges, symbols, isLoading }: LiquidationMatrixProps) {
+  const [lastUpdateMap, setLastUpdateMap] = useState<Record<string, number>>({});
+  const prevDataRef = useRef<Record<string, number>>({});
+
+  // Detect changes and trigger flash animation
+  useEffect(() => {
+    if (isLoading) return; // Skip logic if loading but keep the hook call
+
+    const newUpdates: Record<string, number> = { ...lastUpdateMap };
+    let changed = false;
+
+    data.forEach(d => {
+      const key = `${d.symbol}-${d.exchange}`;
+      // Use a small epsilon for float comparison to handle precision
+      if (Math.abs((prevDataRef.current[key] || 0) - d.value) > 0.01) {
+        newUpdates[key] = Date.now();
+        prevDataRef.current[key] = d.value;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      setLastUpdateMap(newUpdates);
+    }
+    
+    // Auto-clear old flashes after 1s to ensure UI stay fresh
+    const timer = setTimeout(() => {
+      setLastUpdateMap(prev => {
+        const next = { ...prev };
+        let hasChanges = false;
+        const now = Date.now();
+        Object.keys(next).forEach(k => {
+          if (now - next[k] > 1000) {
+            delete next[k];
+            hasChanges = true;
+          }
+        });
+        return hasChanges ? next : prev;
+      });
+    }, 1100);
+
+    return () => clearTimeout(timer);
+  }, [data, isLoading]);
+
+  if (isLoading) {
+    return (
+      <div style={{
+        width: '100%',
+        height: '350px',
+        border: `1px solid var(--border)`,
+        borderRadius: '4px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(255,255,255,0.02)',
+        marginBottom: '20px'
+      }}>
+        <PremiumLoader text="SYNCHRONIZING MATRIX" />
+      </div>
+    );
+  }
+
   const formatValue = (val: number) => {
-    if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
-    if (val >= 1e3) return `$${(val / 1e3).toFixed(2)}K`;
-    return `$${val.toFixed(2)}`;
+    if (val >= 1e6) return `$${(val / 1e6).toFixed(1)}M`;
+    if (val >= 1e3) return `$${(val / 1e3).toFixed(1)}K`;
+    return `$${val.toFixed(0)}`;
   };
 
-  // Find max value to determine color opacity scaling
   const maxValue = Math.max(...data.map(d => d.value), 1);
-
-  // Map data to a fast lookup dictionary
   const cellMap = new Map<string, MatrixCell>();
   data.forEach(d => {
     cellMap.set(`${d.symbol}-${d.exchange}`, d);
@@ -35,24 +94,30 @@ export function LiquidationMatrix({ data, exchanges, symbols }: LiquidationMatri
   return (
     <div style={{
       width: '100%',
-      backgroundColor: THEME.colors.surface,
-      border: `1px solid ${THEME.colors.border}`,
+      backgroundColor: 'transparent',
+      border: `1px solid var(--border)`,
+      borderRadius: '4px',
       display: 'flex',
       flexDirection: 'column',
-      fontFamily: THEME.typography.fontFamily.mono,
-      fontSize: THEME.typography.sizes.xs,
-      overflowX: 'auto'
+      fontFamily: 'var(--font-mono)',
+      fontSize: '11px',
+      overflowX: 'auto',
+      marginBottom: '20px'
     }}>
       {/* Header Row */}
       <div style={{
         display: 'flex',
-        borderBottom: `1px solid ${THEME.colors.border}`,
-        backgroundColor: THEME.colors.background,
-        color: THEME.colors.foregroundMuted,
+        borderBottom: `1px solid var(--border)`,
+        backgroundColor: 'var(--bg-glass-light)',
+        color: 'var(--fg-muted)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        backdropFilter: 'blur(10px)'
       }}>
-        <div style={{ width: '100px', flexShrink: 0, padding: '12px 16px', fontWeight: 600 }}>Symbol</div>
+      <div style={{ width: '80px', flexShrink: 0, padding: '8px 12px', fontWeight: 600, borderRight: `1px solid var(--border)` }}>ASSET</div>
         {exchanges.map(ex => (
-          <div key={ex} style={{ flex: 1, minWidth: '100px', padding: '12px 8px', textAlign: 'center', fontWeight: 600 }}>
+          <div key={ex} style={{ flex: 1, minWidth: '80px', padding: '8px 4px', textAlign: 'center', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             {ex}
           </div>
         ))}
@@ -62,70 +127,71 @@ export function LiquidationMatrix({ data, exchanges, symbols }: LiquidationMatri
       {symbols.map(sym => (
         <div key={sym} style={{
           display: 'flex',
-          borderBottom: `1px solid ${THEME.colors.border}`,
+          borderBottom: `1px solid var(--border)`,
+          height: '32px'
         }}>
           {/* Symbol Label */}
           <div style={{ 
-            width: '100px', 
+            width: '80px', 
             flexShrink: 0, 
-            padding: '12px 16px', 
-            fontWeight: 600,
-            color: THEME.colors.foreground,
-            borderRight: `1px solid ${THEME.colors.border}`,
-            backgroundColor: THEME.colors.background,
+            padding: '8px 12px', 
+            fontWeight: 700,
+            color: 'var(--fg)',
+            borderRight: `1px solid var(--border)`,
+            backgroundColor: 'var(--bg-glass-light)',
           }}>
             {sym}
           </div>
 
           {/* Exchange Cells */}
           {exchanges.map(ex => {
-            const cell = cellMap.get(`${sym}-${ex}`);
+            const key = `${sym}-${ex}`;
+            const cell = cellMap.get(key);
+            const isRecent = Date.now() - (lastUpdateMap[key] || 0) < 1000;
+            
             if (!cell || cell.value === 0) {
               return (
-                <div key={`${sym}-${ex}`} style={{
+                <div key={key} style={{
                   flex: 1,
-                  minWidth: '100px',
+                  minWidth: '80px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: THEME.colors.foregroundMuted,
-                  opacity: 0.3
+                  color: 'rgba(255, 255, 255, 0.05)',
+                  borderRight: `0.5px solid rgba(255, 255, 255, 0.05)`
                 }}>
-                  -
+                  ·
                 </div>
               );
             }
 
             const isGreen = cell.shortValue >= cell.longValue;
+            const safeMaxValue = Math.max(maxValue, 100);
+            const logMax = Math.log10(safeMaxValue);
+            const logVal = Math.log10(Math.max(cell.value, 1));
+            const intensity = Math.min(Math.max(logVal / logMax, 0.1), 0.9);
             
-            // Normalize opacity from 0.1 to 1.0 based on value relative to maxValue
-            // We use a log scale so small values are still somewhat visible
-            const intensity = Math.max(0.1, Math.min(1, Math.log10(cell.value) / Math.log10(maxValue || 10)));
-            
-            const bgColor = isGreen 
-              ? `rgba(30, 200, 83, ${intensity})` 
-              : `rgba(230, 50, 75, ${intensity})`;
+            const colorVar = isGreen ? 'var(--bid-rgb)' : 'var(--ask-rgb)';
+            const bgColor = isRecent 
+              ? `rgba(${colorVar}, 0.6)` // Flash state
+              : `rgba(${colorVar}, ${intensity * 0.5})`;
 
             return (
-              <div key={`${sym}-${ex}`} style={{
+              <div key={key} style={{
                 flex: 1,
-                minWidth: '100px',
-                padding: '12px 8px',
-                textAlign: 'center',
+                minWidth: '80px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 backgroundColor: bgColor,
                 color: '#fff',
                 fontWeight: 600,
-                textShadow: '0px 1px 2px rgba(0,0,0,0.8)',
-                cursor: 'pointer',
-                transition: 'filter 0.2s',
+                cursor: 'crosshair',
+                transition: 'background-color 0.8s ease-out',
+                borderRight: `0.5px solid var(--border)`,
+                position: 'relative'
               }}
-              title={`${sym} on ${ex}: Longs ${formatValue(cell.longValue)}, Shorts ${formatValue(cell.shortValue)}`}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.filter = 'brightness(1.5)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.filter = 'brightness(1)';
-              }}
+              title={`${sym} on ${ex}: $${cell.value.toLocaleString()}`}
               >
                 {formatValue(cell.value)}
               </div>

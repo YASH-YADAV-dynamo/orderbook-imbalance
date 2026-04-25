@@ -12,9 +12,10 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import styles from './VolumeChart.module.css';
-import { LiquidationsChartData } from '@/hooks/useLiquidationsFeed';
+import { LiquidationsChartData } from '@/store/useLiquidationsStore';
 import { THEME } from '@/lib/theme-config';
 import { useAppStore } from '@/store/useAppStore';
+import { PremiumLoader } from '@/components/ui/PremiumLoader';
 
 ChartJS.register(
   CategoryScale,
@@ -45,7 +46,9 @@ export function VolumeChart({ data, isLoading }: VolumeChartProps) {
         <div className={styles.header}>
           <h2 className={styles.title}>24H LIQUIDATION VOLUME</h2>
         </div>
-        <div className={styles.skeletonChart} />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <PremiumLoader compact text="CALCULATING TRENDS" />
+        </div>
       </div>
     );
   }

@@ -136,12 +136,6 @@ export default function LandingPage() {
                   ranked by strongest directional pressure
                 </span>
               </div>
-              <div className={styles.widgetTitleRight}>
-                <div className={styles.widgetLive} data-live={anyLive}>
-                  <span className={styles.liveDot} />
-                  <span className={styles.liveText}>{anyLive ? 'Live' : 'Connecting'}</span>
-                </div>
-              </div>
             </div>
 
             <div className={styles.widgetControls}>

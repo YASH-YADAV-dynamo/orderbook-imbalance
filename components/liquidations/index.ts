@@ -4,3 +4,4 @@ export { FilterBar } from './FilterBar';
 export { DataTable } from './DataTable';
 export { Treemap } from './Treemap';
 export { LiquidationMatrix } from './LiquidationMatrix';
+export { ExchangeBreakdown } from './ExchangeBreakdown';

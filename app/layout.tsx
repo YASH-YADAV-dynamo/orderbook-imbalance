@@ -33,10 +33,34 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
+import { Preloader } from '@/components/ui/Preloader';
+import { GlobalFeedManager } from '@/components/GlobalFeedManager';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('obi-app');
+                  if (theme) {
+                    var parsed = JSON.parse(theme);
+                    if (parsed && parsed.state && parsed.state.theme) {
+                      document.documentElement.setAttribute('data-theme', parsed.state.theme);
+                    }
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body suppressHydrationWarning>
+        <Preloader />
+        <GlobalFeedManager />
         <div className="appRoot">
           <main className="appMain">{children}</main>
           <GlobalFooter />

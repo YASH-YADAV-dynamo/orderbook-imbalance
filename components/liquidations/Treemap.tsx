@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import * as d3 from 'd3-hierarchy';
-import { THEME } from '@/lib/theme-config';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, ZoomIn } from 'lucide-react';
+import { PremiumLoader } from '@/components/ui/PremiumLoader';
 
 export interface TreemapData {
   name: string;
@@ -11,16 +13,41 @@ export interface TreemapData {
 
 interface TreemapProps {
   data: TreemapData[];
-  title: string;
-  subtitle?: string;
-  width?: number;
-  height?: number;
+  title?: string;
+  isLoading?: boolean;
 }
 
-export function Treemap({ data, title, subtitle, width = 600, height = 400 }: TreemapProps) {
-  // We use D3 to calculate the layout.
+export function Treemap({ data, title = 'Symbols Liquidation Distribution', isLoading }: TreemapProps) {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = React.useState({ w: 400, h: 400 });
+  const [isHovered, setIsHovered] = useState(false);
+  const [activeTimeframe, setActiveTimeframe] = useState('24h');
+  
+  useEffect(() => {
+    if (containerRef.current) {
+      const { offsetWidth } = containerRef.current;
+      setDimensions({
+        w: offsetWidth,
+        h: Math.max(300, offsetWidth * 0.6) // More cinematic rectangular ratio
+      });
+    }
+  }, []);
+
+  // Scroll Lock on Hover
+  useEffect(() => {
+    if (isHovered) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isHovered]);
+
   const root = useMemo(() => {
-    // d3 hierarchy needs a root node
+    if (!data || data.length === 0) {
+      return d3.hierarchy({ name: 'root', children: [] }).sum(() => 0);
+    }
+
     const hierarchyData = {
       name: 'root',
       children: data
@@ -30,148 +57,216 @@ export function Treemap({ data, title, subtitle, width = 600, height = 400 }: Tr
       .sum(d => (d as any).value)
       .sort((a, b) => (b.value || 0) - (a.value || 0));
 
-    // Calculate squarified layout
     d3.treemap()
-      .size([width, height])
+      .size([dimensions.w || 400, dimensions.h || 300])
       .paddingInner(2)
-      .paddingOuter(2)
+      .paddingOuter(0)
       .round(true)(rootNode as any);
 
     return rootNode;
-  }, [data, width, height]);
+  }, [data, dimensions]);
 
-  // Format numbers to M, K
+  if (isLoading) {
+    return (
+      <div style={{ 
+        width: '100%', 
+        height: dimensions.h || 400, 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: 'rgba(0,0,0,0.2)',
+        borderRadius: '8px',
+        border: '1px solid rgba(255,255,255,0.05)'
+      }}>
+        <PremiumLoader compact text="LOADING DATA" />
+      </div>
+    );
+  }
+
   const formatValue = (val: number) => {
+    if (val >= 1e9) return `$${(val / 1e9).toFixed(2)}B`;
     if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
     if (val >= 1e3) return `$${(val / 1e3).toFixed(2)}K`;
     return `$${val.toFixed(2)}`;
   };
 
   if (!data || data.length === 0) {
-    return (
-      <div style={{
-        width: '100%', 
-        height, 
-        border: `1px solid ${THEME.colors.border}`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: THEME.colors.foregroundMuted,
-        fontFamily: THEME.typography.fontFamily.mono,
-        fontSize: THEME.typography.sizes.sm,
-      }}>
-        No data available
-      </div>
-    );
+    return <div className="treemap-empty">No Data</div>;
   }
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+    <div 
+      className="treemap-outer-wrapper"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      style={{ width: '100%', marginBottom: '12px' }}
+    >
+      {/* Professional Header Section */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        padding: '8px 4px',
+        borderBottom: '1.5px solid rgba(255,255,255,0.05)',
+        marginBottom: '12px'
+      }}>
         <div>
           <h3 style={{ 
-            color: THEME.colors.foreground, 
-            fontSize: THEME.typography.sizes.sm,
-            fontWeight: 600,
-            margin: 0
+            fontSize: '13px', 
+            fontWeight: 800, 
+            color: '#fff', 
+            margin: 0,
+            fontFamily: 'var(--font-sans)'
           }}>
             {title}
           </h3>
-          {subtitle && (
-            <p style={{
-              color: THEME.colors.foregroundMuted,
-              fontSize: THEME.typography.sizes.xs,
-              margin: 0,
-              marginTop: '4px'
-            }}>
-              {subtitle}
-            </p>
-          )}
+          <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', fontWeight: 600 }}>
+            24h liquidation volume
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {['1h', '4h', '12h', '24h'].map(tf => (
+            <button 
+              key={tf}
+              onClick={() => setActiveTimeframe(tf)}
+              style={{
+                background: activeTimeframe === tf ? 'rgba(255,255,255,0.08)' : 'transparent',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: activeTimeframe === tf ? '#fff' : 'rgba(255,255,255,0.5)',
+                fontSize: '9px',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '2px',
+                cursor: 'pointer'
+              }}
+            >
+              {tf}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div style={{ 
-        position: 'relative', 
-        width: '100%', 
-        height: `${height}px`,
-        backgroundColor: THEME.colors.surface,
-        border: `1px solid ${THEME.colors.border}`,
-        overflow: 'hidden'
-      }}>
-        {root.leaves().map((leaf: any, i: number) => {
-          const d = leaf.data as TreemapData;
-          // Determine color based on dominant side. If short > long, it's green (short liquidations = buys).
-          const isGreen = d.shortValue >= d.longValue;
-          
-          // Generate an intensity for the color based on the ratio (more dominant = brighter color)
-          // Default bright colors from screenshot
-          const bgColor = isGreen ? '#1ec853' : '#e6324b';
-          const darkerColor = isGreen ? '#0a421b' : '#4d1018';
-          
-          // Interpolate opacity or use fixed colors. We will use a mixed color approach to give variations.
-          const ratio = Math.max(d.longValue, d.shortValue) / (d.longValue + d.shortValue || 1);
-          const opacity = 0.4 + (ratio * 0.6); // 0.4 to 1.0
+      <div 
+        ref={containerRef} 
+        style={{ 
+          position: 'relative', 
+          width: '100%', 
+          height: `${dimensions.h}px`,
+          backgroundColor: '#0a0a0a',
+          overflow: 'visible',
+          borderRadius: '4px',
+          cursor: 'default'
+        }}
+      >
+        <AnimatePresence>
+          {root.leaves().map((leaf: any, i: number) => {
+            const d = leaf.data as TreemapData;
+            const isGreen = d.shortValue >= d.longValue;
+            const bgColor = isGreen ? '#10b981' : '#ef4444'; // Direct green/red for high-fidelity
+            const sumVal = (d.longValue || 0) + (d.shortValue || 0);
+            const ratio = sumVal > 0 ? Math.max(d.longValue || 0, d.shortValue || 0) / sumVal : 0.5;
+            
+            // Rich opacity logic
+            const opacity = Math.min(Math.max(0.4 + (ratio * 0.4), 0.4), 0.9); 
 
-          const boxWidth = leaf.x1 - leaf.x0;
-          const boxHeight = leaf.y1 - leaf.y0;
+            const boxWidth = Math.max(leaf.x1 - leaf.x0, 0) || 0;
+            const boxHeight = Math.max(leaf.y1 - leaf.y0, 0) || 0;
+            
+            return (
+              <motion.div
+                key={`${d.name}-${i}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                whileHover={{ 
+                  scale: 1.2, // Slightly more zoom
+                  zIndex: 100,
+                  opacity: 1,
+                  boxShadow: '0 15px 50px rgba(0,0,0,0.9)',
+                }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                style={{
+                  position: 'absolute',
+                  left: leaf.x0,
+                  top: leaf.y0,
+                  width: boxWidth,
+                  height: boxHeight,
+                  backgroundColor: bgColor,
+                  opacity,
+                  border: '1px solid rgba(255,255,255,0.05)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  transformOrigin: 'center center'
+                }}
+              >
+                {/* Search/Zoom Icons for larger boxes */}
+                {boxWidth > 70 && boxHeight > 50 && (
+                  <div style={{ 
+                    position: 'absolute', 
+                    top: '8px', 
+                    right: '8px', 
+                    opacity: 0.6, 
+                    display: 'flex', 
+                    gap: '4px',
+                    background: 'rgba(0,0,0,0.2)',
+                    padding: '2px',
+                    borderRadius: '2px'
+                  }}>
+                    <Search size={11} color="#fff" strokeWidth={3} />
+                    <ZoomIn size={11} color="#fff" strokeWidth={3} />
+                  </div>
+                )}
 
-          // Don't render text if the box is too small
-          const showText = boxWidth > 60 && boxHeight > 40;
-
-          return (
-            <div
-              key={`${d.name}-${i}`}
-              style={{
-                position: 'absolute',
-                left: leaf.x0,
-                top: leaf.y0,
-                width: boxWidth,
-                height: boxHeight,
-                backgroundColor: bgColor,
-                opacity: opacity,
-                border: '1px solid rgba(0,0,0,0.5)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                overflow: 'hidden',
-                transition: 'opacity 0.2s',
-                cursor: 'pointer',
-              }}
-              title={`${d.name}: ${formatValue(d.value)} (Longs: ${formatValue(d.longValue)} | Shorts: ${formatValue(d.shortValue)})`}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '1';
-                e.currentTarget.style.border = `1px solid #fff`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = opacity.toString();
-                e.currentTarget.style.border = '1px solid rgba(0,0,0,0.5)';
-              }}
-            >
-              {showText && (
-                <>
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center',
+                  pointerEvents: 'none',
+                  textAlign: 'center',
+                  width: '95%'
+                }}>
                   <span style={{ 
                     color: '#fff', 
-                    fontWeight: 700, 
-                    fontSize: THEME.typography.sizes.sm,
-                    textShadow: '0px 1px 2px rgba(0,0,0,0.8)',
-                    fontFamily: 'sans-serif'
+                    fontWeight: 900, 
+                    fontSize: Math.min(18, Math.max(9, boxWidth / 6)) + 'px',
+                    fontFamily: 'var(--font-sans)',
+                    lineHeight: 1.1,
+                    textShadow: '0 2px 4px rgba(0,0,0,0.5)'
                   }}>
                     {d.name}
                   </span>
-                  <span style={{ 
-                    color: '#fff', 
-                    fontSize: THEME.typography.sizes.xs,
-                    textShadow: '0px 1px 2px rgba(0,0,0,0.8)',
-                    fontFamily: THEME.typography.fontFamily.mono
-                  }}>
-                    {formatValue(d.value)}
-                  </span>
-                </>
-              )}
-            </div>
-          );
-        })}
+                  
+                  {boxHeight > 35 && (
+                    <span style={{ 
+                      color: '#fff', 
+                      fontSize: Math.min(16, Math.max(8, boxWidth / 8)) + 'px',
+                      fontFamily: 'var(--font-sans)',
+                      fontWeight: 800,
+                      marginTop: '4px'
+                    }}>
+                      {formatValue(d.value)}
+                    </span>
+                  )}
+
+                  {boxHeight > 55 && (
+                    <span style={{ 
+                      color: isGreen ? '#10b981' : '#f87171', 
+                      fontSize: Math.min(12, Math.max(7, boxWidth / 12)) + 'px',
+                      fontFamily: 'var(--font-sans)',
+                      fontWeight: 900,
+                      marginTop: '2px'
+                    }}>
+                      {isGreen ? 'Short Bias' : 'Long Bias'} ({(ratio * 100).toFixed(1)}%)
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
     </div>
   );
