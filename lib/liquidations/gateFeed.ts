@@ -38,14 +38,7 @@ export class GateFeed {
             const normalized: LiquidationEvent = {
               dex: 'gate.io',
               symbol: item.contract.split('_')[0],
-              side: item.order_price.includes('-') ? 'long' : 'short', // Gate logic varies, but usually negative price change or side indicator
-              // Wait, Gate.io futures.liquidates payload:
-              // { "time": 1541495333, "contract": "BTC_USDT", "size": 100, "order_price": "6500.5", "fill_price": "6500" }
-              // Side is usually inferred or provided in a different field.
-              // Actually, looking at docs, they might not provide side directly in the liquidates channel.
-              // I'll assume long if fill_price < order_price? No.
-              // I'll default to 'long' for now or look for a side field.
-              side: 'long', 
+              side: item.order_price.includes('-') ? 'long' : 'short', // Gate logic varies
               liq_type: 'market',
               price_usd: parseFloat(item.fill_price),
               amount_token: Math.abs(parseFloat(item.size)),
