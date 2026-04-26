@@ -37,8 +37,8 @@ async function seedBybit(): Promise<LiquidationEvent[]> {
         events.push({
           dex:          'BYBIT',
           symbol:       item.symbol.replace('USDT', ''),
-          side:         item.side === 'Sell' ? 'long' : 'short',
-          liq_type:     'market',
+          side:         (item.side === 'Sell' ? 'long' : 'short') as 'long' | 'short',
+          liq_type:     'market' as 'market',
           price_usd:    price,
           amount_token: size,
           notional_usd: price * size,
@@ -75,8 +75,8 @@ async function seedOkx(): Promise<LiquidationEvent[]> {
         events.push({
           dex:          'OKX',
           symbol,
-          side:         d.side === 'sell' ? 'long' : 'short',
-          liq_type:     'market',
+          side:         (d.side === 'sell' ? 'long' : 'short') as 'long' | 'short',
+          liq_type:     'market' as 'market',
           price_usd:    price,
           amount_token: amount,
           notional_usd: price * amount,
@@ -119,8 +119,8 @@ async function seedDeribit(): Promise<LiquidationEvent[]> {
           dex:          'DERIBIT',
           symbol:       ccy,
           // Deribit: session_profit_loss < 0 means the position was losing (likely long in a downturn)
-          side:         (s.session_profit_loss ?? 0) < 0 ? 'long' : 'short',
-          liq_type:     'market',
+          side:         ((s.session_profit_loss ?? 0) < 0 ? 'long' : 'short') as 'long' | 'short',
+          liq_type:     'market' as 'market',
           price_usd:    price,
           amount_token: positionRaw,
           notional_usd: price * positionRaw,
@@ -157,8 +157,8 @@ async function seedHyperliquid(): Promise<LiquidationEvent[]> {
       return {
         dex:          'HYPERLIQUID',
         symbol:       liq.coin ?? '',
-        side:         liq.side === 'S' ? 'long' : 'short',
-        liq_type:     'market',
+        side:         (liq.side === 'S' ? 'long' : 'short') as 'long' | 'short',
+        liq_type:     'market' as 'market',
         price_usd:    price,
         amount_token: size,
         notional_usd: price * size,
