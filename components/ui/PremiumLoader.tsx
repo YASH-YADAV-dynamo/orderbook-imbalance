@@ -14,12 +14,12 @@ export function PremiumLoader({ text = "SKEWX", className = "", compact = false 
   // Non-compact: w-4 (16px) -> w-12 (48px)
   // Text: text-3xl (30px) -> text-8xl (96px)
   
-  const dotSize = compact ? 'w-2 h-2' : 'w-12 h-12';
-  const bounceHeight = compact ? -6 : -48;
-  const gapSize = compact ? 'gap-2' : 'gap-5';
-  const mainGap = compact ? 'gap-3' : 'gap-16';
-  const textSize = compact ? 'text-sm' : 'text-8xl';
-  const separatorSize = compact ? 'text-xs' : 'text-8xl';
+  const dotSize = compact ? 'w-2 h-2' : 'w-6 h-6';
+  const bounceHeight = compact ? -6 : -24;
+  const gapSize = compact ? 'gap-2' : 'gap-3';
+  const mainGap = compact ? 'gap-3' : 'gap-10';
+  const textSize = compact ? 'text-sm' : 'text-4xl';
+  const separatorSize = compact ? 'text-xs' : 'text-4xl';
   
   return (
     <div className={`flex items-center justify-center ${mainGap} ${className}`}>

@@ -1,73 +1,79 @@
 import { LiquidationEvent } from './types';
+import { generateUniqueId } from './utils';
+import { FeedStatus } from './binanceFeed';
 
 export class HyperliquidFeed {
   private ws: WebSocket | null = null;
   private onEvent: (event: LiquidationEvent) => void;
+  private onStatus?: (status: FeedStatus) => void;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private destroyed = false;
 
-  constructor(onEvent: (event: LiquidationEvent) => void) {
-    this.onEvent = onEvent;
+  constructor(onEvent: (event: LiquidationEvent) => void, onStatus?: (status: FeedStatus) => void) {
+    this.onEvent  = onEvent;
+    this.onStatus = onStatus;
   }
 
   connect() {
-    const url = 'wss://api.hyperliquid.xyz/ws';
-    this.ws = new WebSocket(url);
+    if (this.destroyed) return;
+    this.onStatus?.('connecting');
+    this.ws = new WebSocket('wss://api.hyperliquid.xyz/ws');
 
     this.ws.onopen = () => {
-      console.log('Hyperliquid Liquidation Feed connected');
-      // Subscribe to global liquidations
+      console.log('[Hyperliquid] Feed connected ✓');
+      this.onStatus?.('connected');
       this.ws?.send(JSON.stringify({
         method: 'subscribe',
-        subscription: { type: 'liquidation' }
+        subscription: { type: 'liquidations' },
       }));
     };
 
-    this.ws.onmessage = (event) => {
+    this.ws.onmessage = (msg) => {
       try {
-        const msg = JSON.parse(event.data);
-        if (msg.channel === 'liquidation' && msg.data) {
-          const { liquidations } = msg.data;
-          
-          liquidations.forEach((liq: any) => {
-            const normalized: LiquidationEvent = {
-              dex: 'hyperliquid',
-              symbol: liq.coin,
-              side: liq.side === 'S' ? 'long' : 'short', // S = Sell = Long Liquidated
-              liq_type: 'market',
-              price_usd: parseFloat(liq.p),
-              amount_token: parseFloat(liq.sz),
-              notional_usd: parseFloat(liq.p) * parseFloat(liq.sz),
-              timestamp_ms: Date.now(), // HL doesn't always provide timestamp in the liq object
-              raw_order_id: msg.data.hash + liq.coin + liq.sz, // Semi-unique ID
-            };
-            this.onEvent(normalized);
+        const data = JSON.parse(msg.data);
+        if (data.channel === 'subscriptionResponse') return;
+
+        if (data.channel === 'liquidations' && data.data) {
+          const items: any[] = Array.isArray(data.data) ? data.data : [data.data];
+          items.forEach((liq: any) => {
+            const price = parseFloat(liq.px ?? liq.p ?? '0');
+            const size  = parseFloat(liq.sz ?? '0');
+            if (!price || !size) return;
+            this.onEvent({
+              dex:          'HYPERLIQUID',
+              symbol:       liq.coin ?? '',
+              side:         (liq.side === 'S' || liq.side === 'sell') ? 'long' : 'short',
+              liq_type:     'market',
+              price_usd:    price,
+              amount_token: size,
+              notional_usd: price * size,
+              timestamp_ms: liq.time ?? liq.ts ?? Date.now(),
+              raw_order_id: generateUniqueId(liq.time ?? Date.now()),
+            });
           });
         }
-      } catch (err) {
-        console.error('Hyperliquid WS Parse Error:', err);
-      }
+      } catch { /* ignore */ }
     };
 
-    this.ws.onerror = (err) => {
-      console.error('Hyperliquid WS Error:', err);
-    };
+    this.ws.onerror = () => { this.onStatus?.('error'); };
 
-    this.ws.onclose = (event) => {
-      console.warn(`Hyperliquid WS Closed: Code ${event.code}, Reason: ${event.reason || 'None'}`);
-      this.reconnect();
+    this.ws.onclose = (e) => {
+      this.onStatus?.('disconnected');
+      console.warn(`[Hyperliquid] WS closed (${e.code}), reconnecting in 3s...`);
+      this.scheduleReconnect();
     };
   }
 
-  private reconnect() {
+  private scheduleReconnect() {
+    if (this.destroyed) return;
     if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-    this.reconnectTimeout = setTimeout(() => this.connect(), 5000);
+    this.reconnectTimeout = setTimeout(() => this.connect(), 3000);
   }
 
   disconnect() {
+    this.destroyed = true;
     if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-    if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.close();
-    }
+    if (this.ws) { this.ws.onclose = null; this.ws.close(); }
+    this.onStatus?.('disconnected');
   }
 }

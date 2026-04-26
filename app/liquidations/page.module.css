@@ -103,8 +103,52 @@
   background-color: var(--bg-glass-light);
   border: 1px solid var(--border);
   border-radius: 2px;
-  color: var(--bid); /* Success green */
+  color: var(--fg-muted);
+  transition: color 0.3s, border-color 0.3s;
 }
+
+/* Connecting — amber/yellow pulsing */
+.badgeConnecting {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+  animation: badge-pulse 1.5s ease-in-out infinite;
+}
+
+/* Connected & Live — green */
+.badgeConnected {
+  color: #00ff88;
+  border-color: rgba(0, 255, 136, 0.3);
+}
+
+/* Error — red */
+.badgeError {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Offline/Disconnected — muted */
+.badgeOffline {
+  color: #6b7280;
+  border-color: rgba(107, 114, 128, 0.2);
+}
+
+/* Connected count summary */
+.connectedCount {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 8px;
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  border-radius: 2px;
+  color: #00ff88;
+  letter-spacing: 0.05em;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
 
 .refreshButton {
   background: rgba(255, 255, 255, 0.05);

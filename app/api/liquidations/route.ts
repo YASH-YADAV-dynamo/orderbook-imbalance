@@ -3,176 +3,190 @@ import { LiquidationEvent } from '@/lib/liquidations/types';
 
 export const revalidate = 0;
 
-// Optimized symbol list for maximum compatibility across Binance, OKX, Bybit, and Bitget
-const SYMBOLS = [
-  'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 
-  'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'SHIBUSDT', 'DOTUSDT',
-  'LINKUSDT', 'PEPEUSDT', 'WIFUSDT', 'FETUSDT', 'RNDRUSDT',
-  'SUIUSDT', 'APTUSDT', 'OPUSDT', 'ARBUSDT', 'TIAUSDT'
-];
-
-async function fetchBinanceHistorical(): Promise<LiquidationEvent[]> {
-  try {
-    const symbol = 'BTCUSDT';
-    const resp = await fetch(`https://fapi.binance.com/fapi/v1/allForceOrders?symbol=${symbol}&limit=100`, {
-      cache: 'no-store'
-    });
-    const order = await resp.json();
-    const list = Array.isArray(order) ? order : [];
-    
-    return list.map((order: any) => ({
-      raw_order_id: `binance-${order.symbol}-${order.time}`,
-      symbol: order.symbol.replace('USDT', ''),
-      side: order.side.toLowerCase() === 'sell' ? 'long' : 'short',
-      liq_type: 'market',
-      price_usd: parseFloat(order.price),
-      amount_token: parseFloat(order.origQty),
-      notional_usd: parseFloat(order.price) * parseFloat(order.origQty),
-      timestamp_ms: order.time,
-      dex: 'BINANCE'
-    }));
-  } catch (e) { return []; }
+async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms)),
+  ]);
 }
 
-async function fetchOkxHistorical(): Promise<LiquidationEvent[]> {
-  try {
-    const resp = await fetch('https://www.okx.com/api/v5/public/liquidation-orders?instType=SWAP&limit=100', {
-      cache: 'no-store'
-    });
-    const json = await resp.json();
-    if (json.code === '0' && json.data?.[0]?.details) {
-      return json.data[0].details.map((item: any) => ({
-        raw_order_id: `okx-${item.instId}-${item.ts}`,
-        symbol: item.instId.split('-')[0],
-        side: item.side === 'buy' ? 'short' : 'long', 
-        liq_type: 'market',
-        price_usd: parseFloat(item.bkPx),
-        amount_token: parseFloat(item.sz),
-        notional_usd: parseFloat(item.bkPx) * parseFloat(item.sz),
-        timestamp_ms: parseInt(item.ts),
-        dex: 'OKX'
-      }));
-    }
-    return [];
-  } catch (e) { return []; }
+// Bybit: fetch recent liquidations per-symbol (REST only works during active markets)
+async function seedBybit(): Promise<LiquidationEvent[]> {
+  const symbols = [
+    'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT',
+    'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'LINKUSDT', 'PEPEUSDT',
+    'SUIUSDT', 'WIFUSDT', 'APTUSDT', 'LDOUSDT', 'NEARUSDT',
+  ];
+  const events: LiquidationEvent[] = [];
+
+  await Promise.all(symbols.map(async (sym) => {
+    try {
+      const res = await withTimeout(
+        fetch(`https://api.bybit.com/v5/market/liquidation?category=linear&symbol=${sym}&limit=50`, {
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' },
+        }),
+        4000, null as any
+      );
+      if (!res?.ok) return;
+      const json = await res.json();
+      (json?.result?.list ?? []).forEach((item: any) => {
+        const price = parseFloat(item.price);
+        const size  = parseFloat(item.size);
+        if (!price || !size) return;
+        events.push({
+          dex:          'BYBIT',
+          symbol:       item.symbol.replace('USDT', ''),
+          side:         item.side === 'Sell' ? 'long' : 'short',
+          liq_type:     'market',
+          price_usd:    price,
+          amount_token: size,
+          notional_usd: price * size,
+          timestamp_ms: parseInt(item.updatedTime),
+          raw_order_id: `bybit-seed-${sym}-${item.updatedTime}`,
+        });
+      });
+    } catch { /* skip */ }
+  }));
+
+  return events;
 }
 
-async function fetchBybitHistorical(): Promise<LiquidationEvent[]> {
+// OKX: single call for all SWAP liquidations
+async function seedOkx(): Promise<LiquidationEvent[]> {
   try {
-    const resp = await fetch('https://api.bybit.com/v5/market/liquidation?category=linear&symbol=BTCUSDT&limit=50', {
-      cache: 'no-store'
+    const res = await withTimeout(
+      fetch('https://www.okx.com/api/v5/public/liquidation-orders?instType=SWAP&limit=100', {
+        cache: 'no-store',
+      }),
+      5000, null as any
+    );
+    if (!res?.ok) return [];
+    const json = await res.json();
+    if (json.code !== '0' || !Array.isArray(json.data)) return [];
+
+    const events: LiquidationEvent[] = [];
+    json.data.forEach((item: any) => {
+      const symbol = item.instId.split('-')[0];
+      (item.details ?? []).forEach((d: any) => {
+        const price  = parseFloat(d.bkPx || d.px || '0');
+        const amount = parseFloat(d.sz || '0');
+        if (!price || !amount) return;
+        events.push({
+          dex:          'OKX',
+          symbol,
+          side:         d.side === 'sell' ? 'long' : 'short',
+          liq_type:     'market',
+          price_usd:    price,
+          amount_token: amount,
+          notional_usd: price * amount,
+          timestamp_ms: parseInt(d.ts || item.ts || Date.now().toString()),
+          raw_order_id: `okx-seed-${symbol}-${d.ts}`,
+        });
+      });
     });
-    const json = await resp.json();
-    const list = json.data?.list || [];
-    return list.map((item: any) => ({
-      raw_order_id: `bybit-${item.symbol}-${item.updatedTime}`,
-      symbol: item.symbol.replace('USDT', ''),
-      side: item.side === 'Sell' ? 'long' : 'short',
-      liq_type: 'market',
-      price_usd: parseFloat(item.price),
-      amount_token: parseFloat(item.size),
-      notional_usd: parseFloat(item.price) * parseFloat(item.size),
-      timestamp_ms: parseInt(item.updatedTime),
-      dex: 'BYBIT'
-    }));
-  } catch (e) { return []; }
+    return events;
+  } catch { return []; }
 }
 
-async function fetchBitgetHistorical(): Promise<LiquidationEvent[]> {
-  try {
-    const resp = await fetch('https://api.bitget.com/api/v2/mix/market/history-liquidation?symbol=BTCUSDT&productType=usdt-futures&limit=50', {
-      cache: 'no-store'
-    });
-    const json = await resp.json();
-    const list = json.data || [];
-    return list.map((item: any) => ({
-      raw_order_id: `bitget-${item.symbol}-${item.cTime}`,
-      symbol: item.symbol.replace('USDT', ''),
-      side: item.side === 'sell' ? 'long' : 'short',
-      liq_type: 'market',
-      price_usd: parseFloat(item.price),
-      amount_token: parseFloat(item.size),
-      notional_usd: parseFloat(item.price) * parseFloat(item.size),
-      timestamp_ms: parseInt(item.cTime),
-      dex: 'BITGET'
-    }));
-  } catch (e) { return []; }
+// Deribit: BTC + ETH liquidations — always has data, always public
+// These are crypto perpetual/futures liquidation settlements
+async function seedDeribit(): Promise<LiquidationEvent[]> {
+  const currencies = ['BTC', 'ETH', 'SOL'];
+  const events: LiquidationEvent[] = [];
+
+  await Promise.all(currencies.map(async (ccy) => {
+    try {
+      const url = `https://www.deribit.com/api/v2/public/get_last_settlements_by_currency?currency=${ccy}&type=liquidation&count=50`;
+      const res = await withTimeout(
+        fetch(url, { cache: 'no-store' }),
+        5000, null as any
+      );
+      if (!res?.ok) return;
+      const json = await res.json();
+      const settlements: any[] = json?.result?.settlements ?? [];
+
+      settlements.forEach((s: any) => {
+        // Only include liquidation-type settlements
+        if (s.type !== 'liquidation') return;
+        // index_price is the BTC/ETH price at time of liquidation
+        const price = s.index_price ?? s.mark_price ?? 0;
+        // position is the size in base currency
+        const positionRaw = Math.abs(s.position ?? 0);
+        if (!price || !positionRaw) return;
+
+        events.push({
+          dex:          'DERIBIT',
+          symbol:       ccy,
+          // Deribit: session_profit_loss < 0 means the position was losing (likely long in a downturn)
+          side:         (s.session_profit_loss ?? 0) < 0 ? 'long' : 'short',
+          liq_type:     'market',
+          price_usd:    price,
+          amount_token: positionRaw,
+          notional_usd: price * positionRaw,
+          timestamp_ms: s.timestamp,
+          raw_order_id: `deribit-seed-${ccy}-${s.timestamp}-${Math.random().toString(36).slice(2)}`,
+        });
+      });
+    } catch { /* skip */ }
+  }));
+
+  return events;
 }
 
-async function fetchGateHistorical(): Promise<LiquidationEvent[]> {
+// Hyperliquid: recent liquidations via their info API
+async function seedHyperliquid(): Promise<LiquidationEvent[]> {
   try {
-    const resp = await fetch('https://api.gateio.ws/api/v4/futures/usdt/liquidates?contract=BTC_USDT', {
-      cache: 'no-store'
-    });
-    const list = await resp.json();
-    if (!Array.isArray(list)) return [];
-    return list.map((item: any) => ({
-      raw_order_id: `gate-${item.contract}-${item.time}`,
-      symbol: item.contract.split('_')[0],
-      side: 'long', 
-      liq_type: 'market',
-      price_usd: parseFloat(item.price),
-      amount_token: parseFloat(item.size),
-      notional_usd: parseFloat(item.price) * parseFloat(item.size),
-      timestamp_ms: item.time * 1000,
-      dex: 'GATE.IO'
-    }));
-  } catch (e) { return []; }
-}
+    // Fetch recent liquidation fills by looking at clearinghouse state
+    const res = await withTimeout(
+      fetch('https://api.hyperliquid.xyz/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'liquidations' }),
+        cache: 'no-store',
+      }),
+      4000, null as any
+    );
+    if (!res?.ok) return [];
+    const json = await res.json();
+    if (!Array.isArray(json)) return [];
 
-async function fetchHtxHistorical(): Promise<LiquidationEvent[]> {
-  try {
-    const resp = await fetch('https://api.hbdm.com/linear-swap-ex/market/liquidation_orders?contract_code=BTC-USDT&trade_type=0&create_date=7&page_index=1&page_size=50', {
-      cache: 'no-store'
-    });
-    const json = await resp.json();
-    const list = json.data?.orders || [];
-    return list.map((item: any) => ({
-      raw_order_id: `htx-${item.symbol}-${item.created_at}`,
-      symbol: item.symbol,
-      side: item.direction === 'sell' ? 'long' : 'short',
-      liq_type: 'market',
-      price_usd: parseFloat(item.price),
-      amount_token: parseFloat(item.volume),
-      notional_usd: parseFloat(item.price) * parseFloat(item.volume),
-      timestamp_ms: item.created_at,
-      dex: 'HTX'
-    }));
-  } catch (e) { return []; }
+    return json.slice(0, 100).map((liq: any) => {
+      const price = parseFloat(liq.px ?? liq.price ?? '0');
+      const size  = parseFloat(liq.sz ?? liq.size ?? '0');
+      return {
+        dex:          'HYPERLIQUID',
+        symbol:       liq.coin ?? '',
+        side:         liq.side === 'S' ? 'long' : 'short',
+        liq_type:     'market',
+        price_usd:    price,
+        amount_token: size,
+        notional_usd: price * size,
+        timestamp_ms: liq.time ?? Date.now(),
+        raw_order_id: `hl-seed-${liq.time}-${Math.random().toString(36).slice(2)}`,
+      };
+    }).filter((e: LiquidationEvent) => e.price_usd > 0 && e.amount_token > 0);
+  } catch { return []; }
 }
 
 export async function GET() {
-  try {
-    console.log('[API] Initializing multi-venue fetch...');
-    const results = await Promise.allSettled([
-      fetchBinanceHistorical(),
-      fetchOkxHistorical(),
-      fetchBybitHistorical(),
-      fetchBitgetHistorical(),
-      fetchGateHistorical(),
-      fetchHtxHistorical()
-    ]);
+  const start = Date.now();
 
-    const allEvents: LiquidationEvent[] = [];
-    results.forEach((res, i) => {
-      if (res.status === 'fulfilled') {
-        allEvents.push(...res.value);
-      }
-    });
+  const [bybit, okx, deribit, hyperliquid] = await Promise.all([
+    seedBybit(),
+    seedOkx(),
+    seedDeribit(),
+    seedHyperliquid(),
+  ]);
 
-    allEvents.sort((a, b) => b.timestamp_ms - a.timestamp_ms);
-    const topEvents = allEvents.slice(0, 1000);
-    
-    console.log(`[API] Success. Found ${topEvents.length} events across ${results.filter(r => r.status === 'fulfilled').length} sources.`);
+  const allEvents = [...bybit, ...okx, ...deribit, ...hyperliquid]
+    .filter(e => e.price_usd > 0 && e.notional_usd > 0)
+    .sort((a, b) => b.timestamp_ms - a.timestamp_ms)
+    .slice(0, 500);
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        events: topEvents
-      }
-    });
-  } catch (error: any) {
-    console.error('[API] Fatal GET Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
+  const byDex: Record<string, number> = {};
+  allEvents.forEach(e => { byDex[e.dex] = (byDex[e.dex] || 0) + 1; });
+  console.log(`[Seed] ${Date.now() - start}ms | ${allEvents.length} events | ${JSON.stringify(byDex)}`);
+
+  return NextResponse.json({ success: true, data: { events: allEvents } });
 }

@@ -1,6 +1,7 @@
-import { useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { LiquidationEvent } from '@/lib/liquidations/types';
-import { BinanceFeed } from '@/lib/liquidations/binanceFeed';
+import { generateUniqueId } from '@/lib/liquidations/utils';
+import { BinanceFeed, FeedStatus } from '@/lib/liquidations/binanceFeed';
 import { HyperliquidFeed } from '@/lib/liquidations/hyperliquidFeed';
 import { OkxFeed } from '@/lib/liquidations/okxFeed';
 import { BybitFeed } from '@/lib/liquidations/bybitFeed';
@@ -9,7 +10,17 @@ import { GateFeed } from '@/lib/liquidations/gateFeed';
 import { HtxFeed } from '@/lib/liquidations/htxFeed';
 import { useLiquidationsStore, LiquidationsFeedMetrics } from '@/store/useLiquidationsStore';
 
-// Global singleton instances to prevent duplicate connections
+// ─── Types ────────────────────────────────────────────────────────────────────
+export type ExchangeKey = 'BINANCE' | 'OKX' | 'BYBIT' | 'BITGET' | 'GATE.IO' | 'HTX' | 'HYPERLIQUID';
+
+export interface ExchangeConnectionStatus {
+  key: ExchangeKey;
+  status: FeedStatus | 'idle';
+  eventCount: number;
+}
+
+// ─── Global singleton instances ────────────────────────────────────────────────
+// (Prevents duplicate connections on React re-renders)
 let globalBinance: BinanceFeed | null = null;
 let globalHL: HyperliquidFeed | null = null;
 let globalOkx: OkxFeed | null = null;
@@ -18,118 +29,114 @@ let globalBitget: BitgetFeed | null = null;
 let globalGate: GateFeed | null = null;
 let globalHtx: HtxFeed | null = null;
 
+const EXCHANGE_KEYS: ExchangeKey[] = ['BINANCE', 'OKX', 'BYBIT', 'BITGET', 'GATE.IO', 'HTX', 'HYPERLIQUID'];
+
 export function useLiquidationsFeed() {
-  const {
-    events,
-    metrics,
-    isLive,
-    isLoading,
-    isHydrated,
-    lastUpdate,
-    addEvent,
-    setInitialData,
-    setIsLoading,
-    setIsHydrated,
-    toggleLive
-  } = useLiquidationsStore();
+  const events      = useLiquidationsStore(s => s.events);
+  const metrics     = useLiquidationsStore(s => s.metrics);
+  const isLive      = useLiquidationsStore(s => s.isLive);
+  const isLoading   = useLiquidationsStore(s => s.isLoading);
+  const isHydrated  = useLiquidationsStore(s => s.isHydrated);
+  const lastUpdate  = useLiquidationsStore(s => s.lastUpdate);
+
+  const addEvents       = useLiquidationsStore(s => s.addEvents);
+  const setInitialData  = useLiquidationsStore(s => s.setInitialData);
+  const setIsLoading    = useLiquidationsStore(s => s.setIsLoading);
+  const setIsHydrated   = useLiquidationsStore(s => s.setIsHydrated);
+  const toggleLive      = useLiquidationsStore(s => s.toggleLive);
+
+  // ─── Per-exchange connection tracking ─────────────────────────────────────
+  const [connectionStatus, setConnectionStatus] = useState<Record<ExchangeKey, FeedStatus | 'idle'>>({
+    BINANCE:      'idle',
+    OKX:          'idle',
+    BYBIT:        'idle',
+    BITGET:       'idle',
+    'GATE.IO':    'idle',
+    HTX:          'idle',
+    HYPERLIQUID:  'idle',
+  });
+  const [eventCounts, setEventCounts] = useState<Record<ExchangeKey, number>>({
+    BINANCE: 0, OKX: 0, BYBIT: 0, BITGET: 0, 'GATE.IO': 0, HTX: 0, HYPERLIQUID: 0,
+  });
+
+  const updateStatus = useCallback((key: ExchangeKey, status: FeedStatus) => {
+    setConnectionStatus(prev => ({ ...prev, [key]: status }));
+  }, []);
+
+  // ─── Batch event processing ────────────────────────────────────────────────
+  const eventBuffer = useRef<LiquidationEvent[]>([]);
+  const batchTimer  = useRef<NodeJS.Timeout | null>(null);
+
+  const processBatch = useCallback(() => {
+    if (eventBuffer.current.length === 0) return;
+    const batch = [...eventBuffer.current];
+    eventBuffer.current = [];
+
+    // Track event counts per exchange
+    const counts: Partial<Record<ExchangeKey, number>> = {};
+    batch.forEach(e => {
+      const key = e.dex.toUpperCase() as ExchangeKey;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    setEventCounts(prev => {
+      const next = { ...prev };
+      Object.entries(counts).forEach(([k, v]) => {
+        if (EXCHANGE_KEYS.includes(k as ExchangeKey)) {
+          next[k as ExchangeKey] = (next[k as ExchangeKey] || 0) + v;
+        }
+      });
+      return next;
+    });
+
+    addEvents(batch);
+  }, [addEvents]);
 
   const handleNewEvent = useCallback((event: LiquidationEvent) => {
-    addEvent(event);
-  }, [addEvent]);
+    eventBuffer.current.push(event);
+    if (!batchTimer.current) {
+      batchTimer.current = setInterval(processBatch, 150);
+    }
+  }, [processBatch]);
 
-  // Background Hydration logic
   useEffect(() => {
-    const hydrate = async () => {
-      if (isHydrated) return;
+    return () => { if (batchTimer.current) clearInterval(batchTimer.current); };
+  }, []);
 
-      try {
-        setIsLoading(true);
-        console.log('[useLiquidationsFeed] Fetching historical data...');
-        const resp = await fetch('/api/liquidations');
-        const json = await resp.json();
-        
-        console.log('[useLiquidationsFeed] Hydration response:', {
-          success: json.success,
-          count: json.data?.events?.length || 0
-        });
+  // ─── Hydration (REST seed) ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (isHydrated) return;
 
-        if (json.success && json.data.events && json.data.events.length > 0) {
-          const combined = json.data.events;
-          
-          let vol = 0;
-          let long = 0;
-          let short = 0;
-          let maxSingle = 0;
-          let topAsset = '---';
-          let maxAssetVol = 0;
-          const tempAssetMap: Record<string, number> = {};
-          
-          let whaleCount = 0;
-          combined.forEach((e: LiquidationEvent) => {
-            const usd = e.notional_usd || 0;
-            vol += usd;
-            if (e.side === 'long') long += usd; else short += usd;
-            if (usd > maxSingle) maxSingle = usd;
-            if (usd >= 500000) whaleCount++;
-            
-            tempAssetMap[e.symbol] = (tempAssetMap[e.symbol] || 0) + usd;
-            if (tempAssetMap[e.symbol] > maxAssetVol) {
-              maxAssetVol = tempAssetMap[e.symbol];
-              topAsset = e.symbol;
-            }
-          });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
-          const initialMetrics: LiquidationsFeedMetrics = {
-            totalVolume: vol,
-            totalLongUsd: long,
-            totalShortUsd: short,
-            longRatio: vol > 0 ? long / vol : 0,
-            shortRatio: vol > 0 ? short / vol : 0,
-            avgSize: combined.length > 0 ? vol / combined.length : 0,
-            largestSingle: maxSingle,
-            topAsset,
-            eventCount24h: combined.length,
-            whaleCount,
-          };
-
-          setInitialData(combined, initialMetrics);
+    setIsLoading(true);
+    fetch('/api/liquidations', { signal: controller.signal })
+      .then(r => r.json())
+      .then(json => {
+        clearTimeout(timeout);
+        if (json.success && json.data?.events?.length > 0) {
+          setInitialData(json.data.events, {} as any);
         } else {
-          console.warn('[useLiquidationsFeed] No historical data received');
+          // No seed data — mark hydrated anyway so WS can take over
           setIsLoading(false);
           setIsHydrated(true);
         }
-      } catch (err) {
-        console.error('[useLiquidationsFeed] Hydration error:', err);
+      })
+      .catch(() => {
         setIsLoading(false);
         setIsHydrated(true);
-      }
-    };
+      });
 
-    hydrate();
+    return () => { clearTimeout(timeout); controller.abort(); };
   }, [isHydrated, setInitialData, setIsLoading, setIsHydrated]);
 
-  // WebSocket lifecycle
-  useEffect(() => {
-    if (isLive && !isLoading) {
-      if (!globalBinance) {
-        console.log('[useLiquidationsFeed] Starting Multi-Exchange Feeds');
-        globalBinance = new BinanceFeed(handleNewEvent);
-        globalHL = new HyperliquidFeed(handleNewEvent);
-        globalOkx = new OkxFeed(handleNewEvent);
-        globalBybit = new BybitFeed(handleNewEvent);
-        globalBitget = new BitgetFeed(handleNewEvent);
-        globalGate = new GateFeed(handleNewEvent);
-        globalHtx = new HtxFeed(handleNewEvent);
+  // Use a ref so callbacks are always fresh (avoids stale closure in singleton classes)
+  const updateStatusRef = useRef(updateStatus);
+  useEffect(() => { updateStatusRef.current = updateStatus; }, [updateStatus]);
 
-        globalBinance.connect();
-        globalHL.connect();
-        globalOkx.connect();
-        globalBybit.connect();
-        globalBitget.connect();
-        globalGate.connect();
-        globalHtx.connect();
-      }
-    } else if (!isLive) {
+  // ─── WebSocket lifecycle ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isLive) {
       globalBinance?.disconnect();
       globalHL?.disconnect();
       globalOkx?.disconnect();
@@ -137,56 +144,63 @@ export function useLiquidationsFeed() {
       globalBitget?.disconnect();
       globalGate?.disconnect();
       globalHtx?.disconnect();
-      
-      globalBinance = null;
-      globalHL = null;
-      globalOkx = null;
-      globalBybit = null;
-      globalBitget = null;
-      globalGate = null;
-      globalHtx = null;
+      globalBinance = globalHL = globalOkx = globalBybit = globalBitget = globalGate = globalHtx = null;
+      EXCHANGE_KEYS.forEach(k => updateStatusRef.current(k, 'disconnected'));
+      return;
     }
-  }, [isLive, handleNewEvent, isLoading]);
 
+    if (globalBinance) return; // Already started
+
+    console.log('[Feeds] Starting all WebSocket connections...');
+
+    const s = (key: ExchangeKey) => (st: FeedStatus) => updateStatusRef.current(key, st);
+
+    globalBinance = new BinanceFeed(handleNewEvent, s('BINANCE'));
+    globalOkx     = new OkxFeed(handleNewEvent, s('OKX'));
+    globalBybit   = new BybitFeed(handleNewEvent, s('BYBIT'));
+    globalBitget  = new BitgetFeed(handleNewEvent, s('BITGET'));
+    globalGate    = new GateFeed(handleNewEvent, s('GATE.IO'));
+    globalHtx     = new HtxFeed(handleNewEvent, s('HTX'));
+    globalHL      = new HyperliquidFeed(handleNewEvent, s('HYPERLIQUID'));
+
+    globalBinance.connect();
+    globalOkx.connect();
+    globalBybit.connect();
+    globalBitget.connect();
+    globalGate.connect();
+    globalHtx.connect();
+    globalHL.connect();
+  }, [isLive, handleNewEvent]);
+
+  // ─── Derived dashboard data ────────────────────────────────────────────────
   const derivedData = useMemo(() => {
     const symMap = new Map<string, { v: number, l: number, s: number }>();
-    const exMap = new Map<string, { v: number, l: number, s: number, c: number }>();
+    const exMap  = new Map<string, { v: number, l: number, s: number, c: number }>();
     const matMap = new Map<string, { v: number, l: number, s: number }>();
 
     events.forEach(e => {
-      const isLong = e.side === 'long';
-      const usd = Number(e.notional_usd) || 0;
-      
-      const symName = e.symbol.toUpperCase().replace('USDT', '').replace('-USDT-SWAP', '').replace('-USDT', '').replace('_USDT', '');
-      const dexName = e.dex.toUpperCase();
-      
-      // Symbol Map
+      const isLong   = e.side === 'long';
+      const usd      = Number(e.notional_usd) || 0;
+      const symName  = e.symbol.toUpperCase()
+        .replace('USDT', '').replace('-USDT-SWAP', '').replace('-USDT', '').replace('_USDT', '');
+      const dexName  = e.dex.toUpperCase();
+
       const sym = symMap.get(symName) || { v: 0, l: 0, s: 0 };
-      sym.v += usd;
-      if (isLong) sym.l += usd; else sym.s += usd;
+      sym.v += usd; if (isLong) sym.l += usd; else sym.s += usd;
       symMap.set(symName, sym);
 
-      // Exchange Map
       const ex = exMap.get(dexName) || { v: 0, l: 0, s: 0, c: 0 };
-      ex.v += usd;
-      ex.c += 1;
-      if (isLong) ex.l += usd; else ex.s += usd;
+      ex.v += usd; ex.c += 1; if (isLong) ex.l += usd; else ex.s += usd;
       exMap.set(dexName, ex);
 
-      // Matrix Map
       const matKey = `${symName}-${dexName}`;
       const mat = matMap.get(matKey) || { v: 0, l: 0, s: 0 };
-      mat.v += usd;
-      if (isLong) mat.l += usd; else mat.s += usd;
+      mat.v += usd; if (isLong) mat.l += usd; else mat.s += usd;
       matMap.set(matKey, mat);
     });
 
     const exchangesTreemapData = Array.from(exMap.entries()).map(([name, data]) => ({
-      name: name.toUpperCase(),
-      value: data.v,
-      longValue: data.l,
-      shortValue: data.s,
-      count: data.c
+      name: name.toUpperCase(), value: data.v, longValue: data.l, shortValue: data.s, count: data.c,
     }));
 
     const symbolsTreemapData = Array.from(symMap.entries())
@@ -196,31 +210,24 @@ export function useLiquidationsFeed() {
 
     const matrixData = Array.from(matMap.entries()).map(([key, data]) => {
       const [symbol, exchange] = key.split('-');
-      return {
-        symbol,
-        exchange: exchange.toUpperCase(),
-        value: data.v,
-        longValue: data.l,
-        shortValue: data.s
-      };
+      return { symbol, exchange: exchange.toUpperCase(), value: data.v, longValue: data.l, shortValue: data.s };
     });
 
-    const CORE_EXCHANGES = ['BINANCE', 'OKX', 'BYBIT', 'BITGET', 'GATE.IO', 'HTX', 'HYPERLIQUID'];
-    
-    const uniqueSymbols = Array.from(symMap.keys()).sort();
-    
+    const uniqueSymbols   = Array.from(symMap.keys()).sort();
     const activeExchanges = Array.from(exMap.keys()).map(k => k.toUpperCase());
-    const uniqueExchanges = Array.from(new Set([...CORE_EXCHANGES, ...activeExchanges])).sort();
+    const uniqueExchanges = Array.from(new Set([...EXCHANGE_KEYS, ...activeExchanges])).sort();
 
-    return {
-      symbolsTreemapData,
-      exchangesTreemapData,
-      matrixData,
-      uniqueSymbols,
-      uniqueExchanges,
-      activeExchanges
-    };
+    return { symbolsTreemapData, exchangesTreemapData, matrixData, uniqueSymbols, uniqueExchanges, activeExchanges };
   }, [events]);
+
+  // ─── Exchange status for UI ────────────────────────────────────────────────
+  const exchangeStatuses: ExchangeConnectionStatus[] = EXCHANGE_KEYS.map(key => ({
+    key,
+    status:     connectionStatus[key],
+    eventCount: eventCounts[key] || 0,
+  }));
+
+  const connectedCount = exchangeStatuses.filter(s => s.status === 'connected').length;
 
   return {
     events,
@@ -231,8 +238,10 @@ export function useLiquidationsFeed() {
     setIsLoading,
     setIsHydrated,
     toggleLive,
-    error: null,
+    error:          null,
     lastUpdate,
-    ...derivedData
+    exchangeStatuses,
+    connectedCount,
+    ...derivedData,
   };
 }

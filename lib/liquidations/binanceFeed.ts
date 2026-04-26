@@ -1,94 +1,75 @@
 import { LiquidationEvent } from './types';
+import { generateUniqueId } from './utils';
+
+export type FeedStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
 
 export class BinanceFeed {
   private ws: WebSocket | null = null;
   private onEvent: (event: LiquidationEvent) => void;
-  private symbols: string[];
+  private onStatus?: (status: FeedStatus) => void;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private destroyed = false;
 
-  constructor(onEvent: (event: LiquidationEvent) => void, symbols: string[] = []) {
-    this.onEvent = onEvent;
-    this.symbols = symbols;
+  constructor(
+    onEvent: (event: LiquidationEvent) => void,
+    onStatus?: (status: FeedStatus) => void,
+  ) {
+    this.onEvent   = onEvent;
+    this.onStatus  = onStatus;
   }
 
   connect() {
-    // !forceOrder@arr stream is an aggregate of ALL liquidations on Binance Futures
-    const url = 'wss://fstream.binance.com/ws/!forceOrder@arr';
-    
-    this.ws = new WebSocket(url);
+    if (this.destroyed) return;
+    this.onStatus?.('connecting');
+    this.ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
 
     this.ws.onopen = () => {
-      console.log('Binance Liquidation Feed connected');
+      console.log('[Binance] Feed connected ✓');
+      this.onStatus?.('connected');
     };
 
-    this.ws.onmessage = (event) => {
+    this.ws.onmessage = (msg) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data.e === 'forceOrder') {
-          const order = data.o;
-          
-          // Filter by symbols if provided
-          if (this.symbols.length > 0 && !this.symbols.includes(order.s)) {
-            return;
-          }
+        const data = JSON.parse(msg.data);
+        if (data.e !== 'forceOrder') return;
+        const o = data.o;
+        const price = parseFloat(o.ap || o.p);
+        const qty   = parseFloat(o.q);
+        if (!price || !qty) return;
 
-          const normalized: LiquidationEvent = {
-            dex: 'binance',
-            symbol: order.s.replace('USDT', ''), // Normalize symbol (e.g. BTCUSDT -> BTC)
-            side: order.S === 'SELL' ? 'long' : 'short', // SELL means a Long was liquidated
-            liq_type: 'market',
-            price_usd: parseFloat(order.p),
-            amount_token: parseFloat(order.q),
-            notional_usd: parseFloat(order.p) * parseFloat(order.q),
-            timestamp_ms: data.E,
-            raw_order_id: data.E + Math.random(), // Binance doesn't provide a unique ID per liquidation in this stream
-          };
-
-          this.onEvent(normalized);
-        }
-      } catch (err) {
-        console.error('Binance WS Parse Error:', err);
-      }
+        this.onEvent({
+          dex:          'BINANCE',
+          symbol:       o.s.replace('USDT', ''),
+          side:         o.S === 'SELL' ? 'long' : 'short',
+          liq_type:     'market',
+          price_usd:    price,
+          amount_token: qty,
+          notional_usd: price * qty,
+          timestamp_ms: data.E || Date.now(),
+          raw_order_id: generateUniqueId(data.E),
+        });
+      } catch { /* ignore parse errors */ }
     };
 
-    this.ws.onerror = (err) => {
-      console.error('Binance WS Error:', err);
-    };
+    this.ws.onerror = () => { this.onStatus?.('error'); };
 
-    this.ws.onclose = (event) => {
-      console.warn(`Binance WS Closed: Code ${event.code} (${this.getCloseCodeDescription(event.code)}), Reason: ${event.reason || 'None'}, ReadyState: ${this.ws?.readyState}`);
-      this.reconnect();
+    this.ws.onclose = (e) => {
+      this.onStatus?.('disconnected');
+      console.warn(`[Binance] WS closed (${e.code}), reconnecting in 3s...`);
+      this.scheduleReconnect();
     };
   }
 
-  private getCloseCodeDescription(code: number): string {
-    const codes: Record<number, string> = {
-      1000: 'Normal Closure',
-      1001: 'Going Away',
-      1002: 'Protocol Error',
-      1003: 'Unsupported Data',
-      1005: 'No Status Rcvd',
-      1006: 'Abnormal Closure (Network/Security)',
-      1007: 'Invalid frame payload data',
-      1008: 'Policy Violation',
-      1009: 'Message Too Big',
-      1010: 'Mandatory Ext.',
-      1011: 'Internal Error',
-      1015: 'TLS handshake',
-    };
-    return codes[code] || 'Unknown';
-  }
-
-  private reconnect() {
+  private scheduleReconnect() {
+    if (this.destroyed) return;
     if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-    this.reconnectTimeout = setTimeout(() => this.connect(), 5000);
+    this.reconnectTimeout = setTimeout(() => this.connect(), 3000);
   }
 
   disconnect() {
+    this.destroyed = true;
     if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-    if (this.ws) {
-      this.ws.onclose = null; // Prevent reconnect loop
-      this.ws.close();
-    }
+    if (this.ws) { this.ws.onclose = null; this.ws.close(); }
+    this.onStatus?.('disconnected');
   }
 }
