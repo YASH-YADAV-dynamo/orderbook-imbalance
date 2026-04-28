@@ -1,96 +1,104 @@
 import { LiquidationEvent } from './types';
+import { generateUniqueId } from './utils';
+import { FeedStatus } from './binanceFeed';
+
+const DEFAULT_SYMBOLS = [
+  'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT',
+  'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'SHIBUSDT', 'DOTUSDT',
+  'LINKUSDT', 'PEPEUSDT', 'WIFUSDT', 'SUIUSDT', 'APTUSDT',
+  'OPUSDT', 'ARBUSDT', 'LDOUSDT', 'JUPUSDT', 'TIAUSDT',
+  'NEARUSDT', 'FETUSDT', 'INJUSDT', 'RENDERUSDT', 'SEIUSDT',
+  'STXUSDT', 'ORDIUSDT', 'TONUSDT', 'WLDUSDT', 'MATICUSDT',
+];
 
 export class BybitFeed {
   private ws: WebSocket | null = null;
   private onEvent: (event: LiquidationEvent) => void;
+  private onStatus?: (status: FeedStatus) => void;
   private symbols: string[];
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private pingInterval: NodeJS.Timeout | null = null;
+  private destroyed = false;
 
-  // We subscribe to top symbols as Bybit doesn't have a simple "all" stream on public WS
-  private defaultSymbols = [
-    'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 
-    'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT', 'SHIBUSDT', 'DOTUSDT',
-    'LINKUSDT', 'PEPEUSDT', 'WIFUSDT', 'FETUSDT', 'RNDRUSDT',
-    'SUIUSDT', 'APTUSDT', 'OPUSDT', 'ARBUSDT', 'TIAUSDT'
-  ];
-
-  constructor(onEvent: (event: LiquidationEvent) => void, symbols?: string[]) {
-    this.onEvent = onEvent;
-    this.symbols = symbols || this.defaultSymbols;
+  constructor(
+    onEvent: (event: LiquidationEvent) => void,
+    onStatus?: (status: FeedStatus) => void,
+    symbols?: string[],
+  ) {
+    this.onEvent  = onEvent;
+    this.onStatus = onStatus;
+    this.symbols  = symbols || DEFAULT_SYMBOLS;
   }
 
   connect() {
-    const url = 'wss://stream.bybit.com/v5/public/linear';
-    this.ws = new WebSocket(url);
+    if (this.destroyed) return;
+    this.onStatus?.('connecting');
+    this.ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
 
     this.ws.onopen = () => {
-      console.log('Bybit Liquidation Feed connected');
-      // Subscribe to all symbols in chunks (Bybit supports up to 10 topics per msg)
+      console.log('[Bybit] Feed connected ✓');
+      this.onStatus?.('connected');
       for (let i = 0; i < this.symbols.length; i += 10) {
         const chunk = this.symbols.slice(i, i + 10);
         this.ws?.send(JSON.stringify({
-          op: 'subscribe',
-          args: chunk.map(s => `allLiquidation.${s}`)
+          op:   'subscribe',
+          args: chunk.map(s => `liquidation.${s}`),
         }));
       }
-    };
-
-    this.ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.topic && data.topic.startsWith('allLiquidation')) {
-          const item = data.data;
-          
-          const normalized: LiquidationEvent = {
-            dex: 'bybit',
-            symbol: item.s.replace('USDT', ''),
-            side: item.S === 'Buy' ? 'long' : 'short', // Buy side liquidation means a Long was forced to sell? 
-            // Wait: Bybit "Buy" side means the liquidation order was a buy? 
-            // According to Bybit docs: "Side of the liquidation order"
-            // If it's a "Buy" order, it means a Short position was liquidated.
-            // If it's a "Sell" order, it means a Long position was liquidated.
-            // Let's re-verify. 
-            // Usually: "Buy" order covers a "Short". "Sell" order closes a "Long".
-            liq_type: 'market',
-            price_usd: parseFloat(item.p),
-            amount_token: parseFloat(item.v),
-            notional_usd: parseFloat(item.p) * parseFloat(item.v),
-            timestamp_ms: item.T,
-            raw_order_id: `bybit-${item.s}-${item.T}-${Math.random()}`,
-          };
-
-          // Correction based on common exchange logic:
-          // side=Buy in liquidation stream usually means the exchange is BUYING to close a SHORT.
-          // side=Sell means the exchange is SELLING to close a LONG.
-          normalized.side = item.S === 'Sell' ? 'long' : 'short';
-
-          this.onEvent(normalized);
+      this.pingInterval = setInterval(() => {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({ op: 'ping' }));
         }
-      } catch (err) {
-        console.error('Bybit WS Parse Error:', err);
-      }
+      }, 20000);
     };
 
-    this.ws.onerror = (err) => {
-      console.error('Bybit WS Error:', err);
+    this.ws.onmessage = (msg) => {
+      try {
+        const data = JSON.parse(msg.data);
+        if (data.op === 'pong' || data.op === 'subscribe' || data.success !== undefined) return;
+
+        if (data.topic?.startsWith('liquidation.') && data.data) {
+          const item = data.data;
+          const price = parseFloat(item.price);
+          const size  = parseFloat(item.size);
+          if (!price || !size) return;
+
+          this.onEvent({
+            dex:          'BYBIT',
+            symbol:       item.symbol.replace('USDT', ''),
+            side:         item.side === 'Sell' ? 'long' : 'short',
+            liq_type:     'market',
+            price_usd:    price,
+            amount_token: size,
+            notional_usd: price * size,
+            timestamp_ms: item.updatedTime || Date.now(),
+            raw_order_id: generateUniqueId(item.updatedTime || Date.now()),
+          });
+        }
+      } catch { /* ignore */ }
     };
 
-    this.ws.onclose = (event) => {
-      console.warn(`Bybit WS Closed: ${event.code}`);
-      this.reconnect();
+    this.ws.onerror = () => { this.onStatus?.('error'); };
+
+    this.ws.onclose = (e) => {
+      this.onStatus?.('disconnected');
+      console.warn(`[Bybit] WS closed (${e.code}), reconnecting in 3s...`);
+      if (this.pingInterval) clearInterval(this.pingInterval);
+      this.scheduleReconnect();
     };
   }
 
-  private reconnect() {
+  private scheduleReconnect() {
+    if (this.destroyed) return;
     if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-    this.reconnectTimeout = setTimeout(() => this.connect(), 5000);
+    this.reconnectTimeout = setTimeout(() => this.connect(), 3000);
   }
 
   disconnect() {
+    this.destroyed = true;
+    if (this.pingInterval) clearInterval(this.pingInterval);
     if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-    if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.close();
-    }
+    if (this.ws) { this.ws.onclose = null; this.ws.close(); }
+    this.onStatus?.('disconnected');
   }
 }

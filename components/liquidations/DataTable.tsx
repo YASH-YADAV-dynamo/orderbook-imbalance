@@ -37,7 +37,7 @@ const ExchangeIcon = ({ dex }: { dex: string }) => {
 };
 
 export function DataTable({ events, isLoading }: DataTableProps) {
-  if (isLoading) {
+  if (isLoading && events.length === 0) {
     return (
       <div className={styles.loadingWrapper}>
         <PremiumLoader compact text="LOADING EVENTS" />

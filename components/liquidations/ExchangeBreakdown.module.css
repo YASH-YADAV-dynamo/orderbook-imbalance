@@ -102,6 +102,22 @@
   letter-spacing: 0.05em;
 }
 
+.readyDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--fg-muted);
+  opacity: 0.5;
+}
+
+.readyText {
+  font-size: 8px;
+  font-weight: 800;
+  color: var(--fg-muted);
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+}
+
 /* ── Ratio Bar ─────────────────────────────────────────────────────── */
 
 .ratioBar {

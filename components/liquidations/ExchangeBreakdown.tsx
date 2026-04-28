@@ -15,6 +15,8 @@ interface ExchangeBreakdownProps {
   isLoading: boolean;
 }
 
+const CORE_EXCHANGES = ['BINANCE', 'OKX', 'BYBIT', 'BITGET', 'GATE.IO', 'HTX', 'HYPERLIQUID'];
+
 export function ExchangeBreakdown({ data, isLoading }: ExchangeBreakdownProps) {
   const formatCurrency = (val: number) => {
     if (val >= 1e9) return `$${(val / 1e9).toFixed(2)}B`;
@@ -23,7 +25,7 @@ export function ExchangeBreakdown({ data, isLoading }: ExchangeBreakdownProps) {
     return `$${val.toFixed(2)}`;
   };
 
-  if (isLoading) {
+  if (isLoading && data.length === 0) {
     return (
       <div className={styles.loadingWrapper}>
         <PremiumLoader compact text="FETCHING EXCHANGE STATS" />
@@ -31,8 +33,16 @@ export function ExchangeBreakdown({ data, isLoading }: ExchangeBreakdownProps) {
     );
   }
 
-  // Sort by total volume
-  const sortedData = [...data].sort((a, b) => b.value - a.value);
+  // Create a map for quick lookup
+  const dataMap = new Map(data.map(d => [d.name.toUpperCase(), d]));
+  
+  // Always show core exchanges, plus any others that might appear
+  const allExNames = Array.from(new Set([...CORE_EXCHANGES, ...data.map(d => d.name.toUpperCase())]));
+  
+  const displayData = allExNames.map(name => {
+    const ex = dataMap.get(name) || { name, value: 0, longValue: 0, shortValue: 0, count: 0 };
+    return ex;
+  }).sort((a, b) => b.value - a.value || (a.name < b.name ? -1 : 1));
 
   return (
     <div className={styles.container}>
@@ -47,9 +57,10 @@ export function ExchangeBreakdown({ data, isLoading }: ExchangeBreakdownProps) {
             </tr>
           </thead>
           <tbody>
-            {sortedData.map((ex) => {
+            {displayData.map((ex) => {
               const longRatio = ex.value > 0 ? (ex.longValue / ex.value) * 100 : 0;
-              const shortRatio = 100 - longRatio;
+              const shortRatio = ex.value > 0 ? 100 - longRatio : 0;
+              const isLive = ex.count > 0;
 
               return (
                 <tr key={ex.name} className={styles.row}>
@@ -57,8 +68,10 @@ export function ExchangeBreakdown({ data, isLoading }: ExchangeBreakdownProps) {
                     <div className={styles.exchangeInfo}>
                       <span className={styles.name}>{ex.name}</span>
                       <div className={styles.statusGroup}>
-                        <span className={styles.pulseDot} />
-                        <span className={styles.statusText}>LIVE</span>
+                        <span className={isLive ? styles.pulseDot : styles.readyDot} />
+                        <span className={isLive ? styles.statusText : styles.readyText}>
+                          {isLive ? 'LIVE' : 'READY'}
+                        </span>
                       </div>
                     </div>
                   </td>

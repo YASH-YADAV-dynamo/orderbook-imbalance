@@ -23,7 +23,7 @@ export function LiquidationMatrix({ data, exchanges, symbols, isLoading }: Liqui
 
   // Detect changes and trigger flash animation
   useEffect(() => {
-    if (isLoading) return; // Skip logic if loading but keep the hook call
+    if (isLoading && data.length === 0) return; // Skip logic if loading and no data
 
     const newUpdates: Record<string, number> = { ...lastUpdateMap };
     let changed = false;
@@ -61,7 +61,7 @@ export function LiquidationMatrix({ data, exchanges, symbols, isLoading }: Liqui
     return () => clearTimeout(timer);
   }, [data, isLoading]);
 
-  if (isLoading) {
+  if (isLoading && data.length === 0) {
     return (
       <div style={{
         width: '100%',
@@ -72,7 +72,9 @@ export function LiquidationMatrix({ data, exchanges, symbols, isLoading }: Liqui
         alignItems: 'center',
         justifyContent: 'center',
         background: 'rgba(255,255,255,0.02)',
-        marginBottom: '20px'
+        padding: '0 40px',
+        marginBottom: '20px',
+        textAlign: 'center'
       }}>
         <PremiumLoader text="SYNCHRONIZING MATRIX" />
       </div>

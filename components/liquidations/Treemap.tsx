@@ -66,7 +66,7 @@ export function Treemap({ data, title = 'Symbols Liquidation Distribution', isLo
     return rootNode;
   }, [data, dimensions]);
 
-  if (isLoading) {
+  if (isLoading && (!data || data.length === 0)) {
     return (
       <div style={{ 
         width: '100%', 

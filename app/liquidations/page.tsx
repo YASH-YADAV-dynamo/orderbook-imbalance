@@ -25,7 +25,9 @@ export default function LiquidationsPage() {
     toggleLive,
     setIsHydrated,
     setIsLoading,
-    lastUpdate 
+    lastUpdate,
+    exchangeStatuses,
+    connectedCount,
   } = useLiquidationsFeed();
 
   const handleRefresh = () => {
@@ -91,11 +93,33 @@ export default function LiquidationsPage() {
           
           <div className={styles.liveStatus}>
             <div className={styles.sourceBadges}>
-              {['BINANCE', 'OKX', 'BYBIT', 'BITGET', 'GATE.IO', 'HTX', 'HYPERLIQUID'].map(ex => (
-                <span key={ex} className={styles.sourceBadge}>
-                  {ex} {activeExchanges.includes(ex) ? 'ACTIVE' : 'READY'}
+              {exchangeStatuses.map(({ key, status, eventCount }) => {
+                let label = '';
+                let badgeClass = styles.sourceBadge;
+
+                if (status === 'idle') {
+                  label = `${key} IDLE`;
+                } else if (status === 'connecting') {
+                  label = `${key} CONNECTING`;
+                  badgeClass = `${styles.sourceBadge} ${styles.badgeConnecting}`;
+                } else if (status === 'connected') {
+                  label = eventCount > 0 ? `${key} ACTIVE (${eventCount})` : `${key} LIVE`;
+                  badgeClass = `${styles.sourceBadge} ${styles.badgeConnected}`;
+                } else if (status === 'error') {
+                  label = `${key} ERROR`;
+                  badgeClass = `${styles.sourceBadge} ${styles.badgeError}`;
+                } else {
+                  label = `${key} OFFLINE`;
+                  badgeClass = `${styles.sourceBadge} ${styles.badgeOffline}`;
+                }
+
+                return <span key={key} className={badgeClass}>{label}</span>;
+              })}
+              {isLive && (
+                <span className={styles.connectedCount}>
+                  {connectedCount}/{exchangeStatuses.length} LIVE
                 </span>
-              ))}
+              )}
             </div>
             
             <button 
