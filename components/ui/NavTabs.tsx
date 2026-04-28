@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Activity, Droplets } from 'lucide-react';
+import { Zap, Activity, Droplets, BarChart3 } from 'lucide-react';
 import styles from './NavTabs.module.css';
 
 const TABS = [
   { name: 'Orderbook Imbalance', path: '/', icon: Activity },
   { name: 'Funding Arbitrage', path: '/arbitrage', icon: Zap },
   { name: 'Liquidations', path: '/liquidations', icon: Droplets },
+  { name: 'Volume', path: '/volume', icon: BarChart3 },
 ];
 
 export function NavTabs() {
