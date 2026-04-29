@@ -1,0 +1,74 @@
+.container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  overflow-x: auto;
+}
+
+.header {
+  display: flex;
+  background: var(--surface-light);
+  border-bottom: 1px solid var(--border);
+}
+
+.corner {
+  width: 80px;
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+  color: var(--fg-muted);
+  border-right: 1px solid var(--border);
+}
+
+.exLabel {
+  flex: 1;
+  min-width: 80px;
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  font-weight: 700;
+  color: var(--fg-muted);
+  font-size: 0.625rem;
+  letter-spacing: 0.05em;
+}
+
+.row {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.symLabel {
+  width: 80px;
+  padding: 0.5rem 1rem;
+  font-weight: 700;
+  background: var(--surface-light);
+  border-right: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+}
+
+.cell {
+  flex: 1;
+  min-width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  border-right: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+.cell:hover {
+  filter: brightness(1.2);
+}
+
+.loading {
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
