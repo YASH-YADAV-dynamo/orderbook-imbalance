@@ -16,29 +16,17 @@ export const VolumeHero: React.FC<VolumeHeroProps> = ({ stats, isLoading }) => {
 
   const metrics = [
     {
-      label: 'AGGREGATED 24H VOLUME',
-      value: formatUSD(stats.total24h),
-      subValue: `${stats.change24h > 0 ? '+' : ''}${stats.change24h.toFixed(2)}%`,
-      subColor: stats.change24h >= 0 ? 'var(--bid)' : 'var(--ask)'
-    },
-    {
-      label: 'DOMINANT EXCHANGE',
+      label: 'DOMINANT EXCHANGE (stats.dominantExchange)',
       value: stats.dominantExchange,
-      subValue: `${stats.marketShare[stats.dominantExchange]?.toFixed(1)}% SHARE`,
+      subValue: `stats.marketShare[${stats.dominantExchange}] = ${(stats.marketShare[stats.dominantExchange] || 0).toFixed(1)}%`,
       subColor: 'var(--accent)'
     },
     {
-      label: 'LARGEST TRADE SPIKE',
+      label: 'LARGEST TRADE (stats.largestSpike.amount)',
       value: formatUSD(stats.largestSpike.amount),
-      subValue: `ON ${stats.largestSpike.exchange}`,
+      subValue: `stats.largestSpike.exchange = ${stats.largestSpike.exchange}`,
       subColor: 'var(--fg-muted)'
     },
-    {
-      label: 'CONCENTRATION SCORE',
-      value: stats.concentrationScore.toFixed(1),
-      subValue: 'HERFINDAHL INDEX',
-      subColor: 'var(--fg-muted)'
-    }
   ];
 
   return (

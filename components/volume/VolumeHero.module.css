@@ -1,6 +1,6 @@
 .hero {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
   width: 100%;
 }
@@ -49,13 +49,7 @@
   color: transparent;
   background: var(--surface-light);
   border-radius: 4px;
-  animation: pulse 1.5s infinite ease-in-out;
-}
-
-@keyframes pulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 0.3; }
-  100% { opacity: 0.6; }
+  opacity: 0.65;
 }
 
 @media (max-width: 1024px) {

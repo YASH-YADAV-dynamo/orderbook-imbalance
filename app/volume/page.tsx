@@ -6,7 +6,6 @@ import { useVolumeFeed } from '@/hooks/useVolumeFeed';
 import { VolumeHero } from '@/components/volume/VolumeHero';
 import { VolumeChart } from '@/components/volume/VolumeChart';
 import { LiveVolumeFeed } from '@/components/volume/LiveVolumeFeed';
-import { VolumeHeatmap } from '@/components/volume/VolumeHeatmap';
 import Header from '@/components/Header';
 import styles from './page.module.css';
 
@@ -21,10 +20,6 @@ export default function VolumePage() {
     isLoading, 
     exchangeStatuses, 
     lastUpdate,
-    toggleLive,
-    exchangeVolumeMap,
-    assetVolumeMap,
-    exchangeSymbolVolumeMap
   } = useVolumeFeed();
 
   const [mounted, setMounted] = useState(false);
@@ -112,7 +107,7 @@ export default function VolumePage() {
           <div className={`${styles.section} ${styles.chartArea}`}>
             <div className={styles.sectionHeader}>
               <h3 className={styles.sectionTitle}>Aggregated Volume (Stacked)</h3>
-              <span className={styles.sectionSubtitle}>1m resolution • 1h lookback</span>
+              <span className={styles.sectionSubtitle}>buckets[].exchangeVolumes (USD) • 1m • 1h</span>
             </div>
             <VolumeChart buckets={buckets} />
           </div>
@@ -121,30 +116,18 @@ export default function VolumePage() {
           <div className={`${styles.section} ${styles.feedArea}`}>
             <div className={styles.sectionHeader}>
               <h3 className={styles.sectionTitle}>Real-Time Trade Stream</h3>
+              <span className={styles.sectionSubtitle}>trades[] (NormalizedTrade)</span>
             </div>
             <LiveVolumeFeed trades={trades} />
           </div>
         </div>
 
-        {/* Heatmap Section */}
+        {/* Breakdown Section */}
         <div className={styles.secondaryGrid}>
-          <div className={`${styles.section} ${styles.heatmapArea}`}>
-            <div className={styles.sectionHeader}>
-              <h3 className={styles.sectionTitle}>Exchange-Asset Heatmap</h3>
-              <span className={styles.sectionSubtitle}>Volume concentration matrix</span>
-            </div>
-            <VolumeHeatmap 
-              assetVolumeMap={assetVolumeMap}
-              exchangeVolumeMap={exchangeVolumeMap}
-              exchangeSymbolVolumeMap={exchangeSymbolVolumeMap}
-              buckets={buckets}
-              isLoading={isLoading}
-            />
-          </div>
-
           <div className={`${styles.section} ${styles.breakdownArea}`}>
             <div className={styles.sectionHeader}>
               <h3 className={styles.sectionTitle}>Market Share Breakdown</h3>
+              <span className={styles.sectionSubtitle}>stats.marketShare</span>
             </div>
             <div className={styles.breakdownContent}>
               {Object.entries(stats.marketShare).sort((a,b) => b[1] - a[1]).map(([ex, share]) => (

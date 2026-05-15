@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { NormalizedTrade, VolumeStats, VolumeBucket } from '@/lib/volume/types';
 
 interface VolumeState {
@@ -16,6 +17,10 @@ interface VolumeState {
   // Actions
   addTrade: (trade: NormalizedTrade) => void;
   addTrades: (trades: NormalizedTrade[]) => void;
+  /** Buckets / maps / stats only — real-time aggregation for charts */
+  ingestTrades: (trades: NormalizedTrade[]) => void;
+  /** Live feed panel only — call on a slow timer with batched rows */
+  prependFeedTrades: (trades: NormalizedTrade[]) => void;
   setInitialData: (buckets: VolumeBucket[], stats: VolumeStats) => void;
   setIsLoading: (loading: boolean) => void;
   setIsLive: (live: boolean) => void;
@@ -31,123 +36,194 @@ const INITIAL_STATS: VolumeStats = {
   concentrationScore: 0
 };
 
-export const useVolumeStore = create<VolumeState>()((set, get) => ({
-  trades: [],
-  stats: INITIAL_STATS,
-  buckets: [],
-  exchangeVolumeMap: {},
-  assetVolumeMap: {},
-  exchangeSymbolVolumeMap: {},
-  isLive: true,
-  isLoading: true,
-  lastUpdate: null,
-  exchangeStatuses: {},
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-  addTrade: (trade) => {
-    const state = get();
-    const usd = trade.notionalUSD || 0;
-    if (usd <= 0) return;
+function pruneBucketsTo24h(buckets: VolumeBucket[], nowMs: number): VolumeBucket[] {
+  const cutoff = nowMs - DAY_MS;
+  return buckets.filter(b => b.time >= cutoff);
+}
 
-    const newExchangeVolumeMap = { ...state.exchangeVolumeMap };
-    newExchangeVolumeMap[trade.exchange] = (newExchangeVolumeMap[trade.exchange] || 0) + usd;
+function rebuildMapsAndStatsFromBuckets(buckets: VolumeBucket[], prevStats: VolumeStats): {
+  exchangeVolumeMap: Record<string, number>;
+  assetVolumeMap: Record<string, number>;
+  exchangeSymbolVolumeMap: Record<string, number>;
+  stats: VolumeStats;
+} {
+  const exchangeVolumeMap: Record<string, number> = {};
+  const assetVolumeMap: Record<string, number> = {};
+  const exchangeSymbolVolumeMap: Record<string, number> = {};
 
-    const newAssetVolumeMap = { ...state.assetVolumeMap };
-    newAssetVolumeMap[trade.symbol] = (newAssetVolumeMap[trade.symbol] || 0) + usd;
-
-    const newExSymMap = { ...state.exchangeSymbolVolumeMap };
-    const exSymKey = `${trade.exchange}-${trade.symbol}`;
-    newExSymMap[exSymKey] = (newExSymMap[exSymKey] || 0) + usd;
-
-    // Update buckets
-    const bucketTime = Math.floor(trade.timestamp / 60000) * 60000; // 1m buckets
-    const newBuckets = [...state.buckets];
-    let bucket = newBuckets.find(b => b.time === bucketTime);
-    
-    if (!bucket) {
-      bucket = {
-        time: bucketTime,
-        totalVolume: 0,
-        buyVolume: 0,
-        sellVolume: 0,
-        exchangeVolumes: {},
-        symbolVolumes: {}
-      };
-      newBuckets.push(bucket);
-      // Keep only last 1440 buckets (24h)
-      if (newBuckets.length > 1440) newBuckets.shift();
+  let total24h = 0;
+  for (const b of buckets) {
+    total24h += b.totalVolume || 0;
+    for (const [ex, v] of Object.entries(b.exchangeVolumes || {})) {
+      exchangeVolumeMap[ex] = (exchangeVolumeMap[ex] || 0) + (v || 0);
     }
-
-    bucket.totalVolume += usd;
-    if (trade.tradeSide === 'buy') bucket.buyVolume += usd;
-    if (trade.tradeSide === 'sell') bucket.sellVolume += usd;
-    bucket.exchangeVolumes[trade.exchange] = (bucket.exchangeVolumes[trade.exchange] || 0) + usd;
-    bucket.symbolVolumes[trade.symbol] = (bucket.symbolVolumes[trade.symbol] || 0) + usd;
-
-    // Calculate dominant exchange
-    let dominantExchange = state.stats.dominantExchange;
-    let maxVol = newExchangeVolumeMap[dominantExchange] || 0;
-    if (newExchangeVolumeMap[trade.exchange] > maxVol) {
-      dominantExchange = trade.exchange;
+    for (const [sym, v] of Object.entries(b.symbolVolumes || {})) {
+      assetVolumeMap[sym] = (assetVolumeMap[sym] || 0) + (v || 0);
     }
+  }
 
-    // Market share
-    const total24h = state.stats.total24h + usd;
-    const marketShare: Record<string, number> = {};
-    Object.entries(newExchangeVolumeMap).forEach(([ex, vol]) => {
+  const marketShare: Record<string, number> = {};
+  let dominantExchange = '---';
+  let maxExVol = 0;
+  if (total24h > 0) {
+    for (const [ex, vol] of Object.entries(exchangeVolumeMap)) {
       marketShare[ex] = (vol / total24h) * 100;
-    });
+      if (vol > maxExVol) {
+        maxExVol = vol;
+        dominantExchange = ex;
+      }
+    }
+  }
 
-    set({
-      trades: [trade, ...state.trades].slice(0, 100), // Keep last 100 trades for live feed
-      exchangeVolumeMap: newExchangeVolumeMap,
-      assetVolumeMap: newAssetVolumeMap,
-      exchangeSymbolVolumeMap: newExSymMap,
-      buckets: newBuckets,
-      stats: {
-        ...state.stats,
-        total24h,
-        dominantExchange,
-        marketShare,
-        largestSpike: usd > state.stats.largestSpike.amount 
-          ? { exchange: trade.exchange, amount: usd, time: trade.timestamp }
-          : state.stats.largestSpike
+  return {
+    exchangeVolumeMap,
+    assetVolumeMap,
+    exchangeSymbolVolumeMap,
+    stats: {
+      ...prevStats,
+      total24h,
+      dominantExchange,
+      marketShare,
+    },
+  };
+}
+
+export const useVolumeStore = create<VolumeState>()(
+  persist(
+    (set, get) => ({
+      trades: [],
+      stats: INITIAL_STATS,
+      buckets: [],
+      exchangeVolumeMap: {},
+      assetVolumeMap: {},
+      exchangeSymbolVolumeMap: {},
+      isLive: true,
+      isLoading: true,
+      lastUpdate: null,
+      exchangeStatuses: {},
+
+      ingestTrades: (newTrades) => {
+        if (newTrades.length === 0) return;
+        const state = get();
+
+        let buckets = [...state.buckets];
+        let largestSpike = { ...state.stats.largestSpike };
+
+        for (const trade of newTrades) {
+          const usd = trade.notionalUSD || 0;
+          if (usd <= 0) continue;
+
+          const bucketTime = Math.floor(trade.timestamp / 60000) * 60000;
+          let bucket = buckets.find(b => b.time === bucketTime);
+
+          if (!bucket) {
+            bucket = {
+              time: bucketTime,
+              totalVolume: 0,
+              buyVolume: 0,
+              sellVolume: 0,
+              exchangeVolumes: {},
+              symbolVolumes: {},
+            };
+            buckets.push(bucket);
+          }
+
+          bucket.totalVolume += usd;
+          if (trade.tradeSide === 'buy') bucket.buyVolume += usd;
+          if (trade.tradeSide === 'sell') bucket.sellVolume += usd;
+          bucket.exchangeVolumes[trade.exchange] = (bucket.exchangeVolumes[trade.exchange] || 0) + usd;
+          bucket.symbolVolumes[trade.symbol] = (bucket.symbolVolumes[trade.symbol] || 0) + usd;
+
+          if (usd > largestSpike.amount) {
+            largestSpike = { exchange: trade.exchange, amount: usd, time: trade.timestamp };
+          }
+        }
+
+        // Keep buckets within the last 24h window (rolling) and sorted.
+        const nowMs = Date.now();
+        buckets = pruneBucketsTo24h(buckets, nowMs).sort((a, b) => a.time - b.time).slice(-1440);
+
+        const rebuilt = rebuildMapsAndStatsFromBuckets(buckets, state.stats);
+
+        set({
+          buckets,
+          exchangeVolumeMap: rebuilt.exchangeVolumeMap,
+          assetVolumeMap: rebuilt.assetVolumeMap,
+          exchangeSymbolVolumeMap: rebuilt.exchangeSymbolVolumeMap,
+          stats: { ...rebuilt.stats, largestSpike },
+          lastUpdate: nowMs,
+        });
       },
-      lastUpdate: Date.now()
-    });
-  },
 
-  addTrades: (newTrades) => {
-    if (newTrades.length === 0) return;
-    newTrades.forEach(t => get().addTrade(t));
-  },
+      prependFeedTrades: (batch) => {
+        if (batch.length === 0) return;
+        const state = get();
+        const newestFirst = [...batch].reverse();
+        set({
+          trades: [...newestFirst, ...state.trades].slice(0, 100)
+        });
+      },
 
-  setInitialData: (buckets, stats) => {
-    // Rebuild maps from buckets if needed, or just set
-    const exchangeVolumeMap: Record<string, number> = {};
-    const assetVolumeMap: Record<string, number> = {};
-    
-    buckets.forEach(b => {
-      Object.entries(b.exchangeVolumes).forEach(([ex, v]) => {
-        exchangeVolumeMap[ex] = (exchangeVolumeMap[ex] || 0) + v;
-      });
-      Object.entries(b.symbolVolumes).forEach(([sym, v]) => {
-        assetVolumeMap[sym] = (assetVolumeMap[sym] || 0) + v;
-      });
-    });
+      addTrade: (trade) => {
+        get().ingestTrades([trade]);
+        get().prependFeedTrades([trade]);
+      },
 
-    set({
-      buckets,
-      stats,
-      exchangeVolumeMap,
-      assetVolumeMap,
-      isLoading: false,
-      lastUpdate: Date.now()
-    });
-  },
+      addTrades: (newTrades) => {
+        if (newTrades.length === 0) return;
+        get().ingestTrades(newTrades);
+        get().prependFeedTrades(newTrades);
+      },
 
-  setIsLoading: (isLoading) => set({ isLoading }),
-  setIsLive: (isLive) => set({ isLive }),
-  setExchangeStatus: (exchange, status) => set(s => ({
-    exchangeStatuses: { ...s.exchangeStatuses, [exchange]: status }
-  }))
-}));
+      setInitialData: (buckets, stats) => {
+        const nowMs = Date.now();
+        const pruned = pruneBucketsTo24h(buckets, nowMs).sort((a, b) => a.time - b.time).slice(-1440);
+        const rebuilt = rebuildMapsAndStatsFromBuckets(pruned, stats);
+
+        set({
+          buckets: pruned,
+          stats: rebuilt.stats,
+          exchangeVolumeMap: rebuilt.exchangeVolumeMap,
+          assetVolumeMap: rebuilt.assetVolumeMap,
+          exchangeSymbolVolumeMap: rebuilt.exchangeSymbolVolumeMap,
+          isLoading: false,
+          lastUpdate: nowMs,
+        });
+      },
+
+      setIsLoading: (isLoading) => set({ isLoading }),
+      setIsLive: (isLive) => set({ isLive }),
+      setExchangeStatus: (exchange, status) => set(s => ({
+        exchangeStatuses: { ...s.exchangeStatuses, [exchange]: status }
+      }))
+    }),
+    {
+      name: 'obi-volume',
+      version: 1,
+      partialize: (s) => ({
+        buckets: s.buckets,
+        stats: s.stats,
+        exchangeVolumeMap: s.exchangeVolumeMap,
+        assetVolumeMap: s.assetVolumeMap,
+        exchangeSymbolVolumeMap: s.exchangeSymbolVolumeMap,
+        isLive: s.isLive,
+        lastUpdate: s.lastUpdate,
+      }),
+      onRehydrateStorage: () => (state) => {
+        // Prune persisted buckets to a rolling 24h window on startup.
+        if (!state) return;
+        const nowMs = Date.now();
+        const pruned = pruneBucketsTo24h(state.buckets || [], nowMs).sort((a, b) => a.time - b.time).slice(-1440);
+        const rebuilt = rebuildMapsAndStatsFromBuckets(pruned, state.stats || INITIAL_STATS);
+        state.buckets = pruned;
+        state.exchangeVolumeMap = rebuilt.exchangeVolumeMap;
+        state.assetVolumeMap = rebuilt.assetVolumeMap;
+        state.exchangeSymbolVolumeMap = rebuilt.exchangeSymbolVolumeMap;
+        state.stats = rebuilt.stats;
+        state.trades = []; // never persist the live feed rows
+      },
+    },
+  ),
+);

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useAppStore } from '@/store/useAppStore';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -29,7 +30,13 @@ interface VolumeChartProps {
   buckets: VolumeBucket[];
 }
 
+function formatUsdMillions(value: number): string {
+  return `$${(value / 1e6).toFixed(2)}M`;
+}
+
 export const VolumeChart: React.FC<VolumeChartProps> = ({ buckets }) => {
+  const theme = useAppStore(s => s.theme);
+
   const chartData = useMemo(() => {
     // Take last 60 buckets for a 1h view (assuming 1m buckets)
     // Or last 24h (1440 buckets) but sampled
@@ -46,7 +53,7 @@ export const VolumeChart: React.FC<VolumeChartProps> = ({ buckets }) => {
     const exchangeColors: Record<string, string> = {
       'BINANCE': '#F3BA2F',
       'BYBIT': '#FFB11A',
-      'OKX': '#FFFFFF',
+      'OKX': '#64748b',
       'HYPERLIQUID': '#00FFA3',
       'BITGET': '#00F0FF',
     };
@@ -66,55 +73,70 @@ export const VolumeChart: React.FC<VolumeChartProps> = ({ buckets }) => {
     };
   }, [buckets]);
 
-  const options: any = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'top' as const,
-        align: 'end' as const,
-        labels: {
-          boxWidth: 8,
-          usePointStyle: true,
-          pointStyle: 'circle',
-          font: { size: 10, weight: '600' },
-          color: 'var(--fg-muted)',
-        }
+  const options: any = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top' as const,
+          align: 'end' as const,
+          labels: {
+            boxWidth: 8,
+            usePointStyle: true,
+            pointStyle: 'circle',
+            font: { size: 10, weight: '600' },
+            color: theme === 'light' ? '#0f172a' : '#f8fafc',
+          },
+        },
+        tooltip: {
+          mode: 'index' as const,
+          intersect: false,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          titleFont: { size: 12 },
+          bodyFont: { size: 11 },
+          padding: 10,
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderWidth: 1,
+          filter: (item: { parsed: { y?: number } }) => (item.parsed.y ?? 0) > 0,
+          callbacks: {
+            label: (ctx: { dataset: { label?: string }; parsed: { y?: number } }) => {
+              const v = ctx.parsed.y ?? 0;
+              const name = ctx.dataset.label ?? '';
+              return `${name}: ${formatUsdMillions(v)}`;
+            },
+            footer: (items: { parsed: { y?: number } }[]) => {
+              const sum = items.reduce((a, t) => a + (t.parsed.y ?? 0), 0);
+              return `Total: ${formatUsdMillions(sum)}`;
+            },
+          },
+        },
       },
-      tooltip: {
-        mode: 'index' as const,
-        intersect: false,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        titleFont: { size: 12 },
-        bodyFont: { size: 11 },
-        padding: 10,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
-      }
-    },
-    scales: {
-      x: {
-        stacked: true,
-        grid: { display: false },
-        ticks: { 
-          maxRotation: 0,
-          font: { size: 10 },
-          color: 'var(--fg-muted)',
-          autoSkip: true,
-          maxTicksLimit: 12
-        }
+      scales: {
+        x: {
+          stacked: true,
+          grid: { display: false },
+          ticks: {
+            maxRotation: 0,
+            font: { size: 10 },
+            color: theme === 'light' ? '#475569' : '#94a3b8',
+            autoSkip: true,
+            maxTicksLimit: 12,
+          },
+        },
+        y: {
+          stacked: true,
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            font: { size: 10, family: "'JetBrains Mono', Menlo, Consolas, monospace" },
+            color: theme === 'light' ? '#475569' : '#94a3b8',
+            callback: (value: any) => `$${(value / 1e6).toFixed(0)}M`,
+          },
+        },
       },
-      y: {
-        stacked: true,
-        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-        ticks: {
-          font: { size: 10, family: 'var(--font-mono)' },
-          color: 'var(--fg-muted)',
-          callback: (value: any) => `$${(value / 1e6).toFixed(0)}M`
-        }
-      }
-    }
-  };
+    }),
+    [theme]
+  );
 
   return (
     <div className={styles.chartContainer}>

@@ -1,8 +1,11 @@
-import { useEffect, useCallback, useRef, useState } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { NormalizedTrade } from '@/lib/volume/types';
 import { VolumeFeedManager } from '@/lib/volume/VolumeFeedManager';
 import { useVolumeStore } from '@/store/useVolumeStore';
 import { MARKET_PAIRS } from '@/lib/pairs';
+
+/** Live feed list: batch UI updates so rows are readable (charts use real-time ingest). */
+const FEED_UI_FLUSH_MS = 1200;
 
 // Global singleton instance
 let globalVolumeManager: VolumeFeedManager | null = null;
@@ -19,32 +22,50 @@ export function useVolumeFeed() {
   const lastUpdate = useVolumeStore(s => s.lastUpdate);
   const exchangeStatuses = useVolumeStore(s => s.exchangeStatuses);
   const setExchangeStatus = useVolumeStore(s => s.setExchangeStatus);
-  
-  const addTrades = useVolumeStore(s => s.addTrades);
+
+  const ingestTrades = useVolumeStore(s => s.ingestTrades);
+  const prependFeedTrades = useVolumeStore(s => s.prependFeedTrades);
   const setIsLoading = useVolumeStore(s => s.setIsLoading);
   const toggleLive = () => useVolumeStore.getState().setIsLive(!isLive);
 
-  // Batch processing
-  const tradeBuffer = useRef<NormalizedTrade[]>([]);
-  const batchTimer = useRef<NodeJS.Timeout | null>(null);
+  const aggPending = useRef<NormalizedTrade[]>([]);
+  const feedPending = useRef<NormalizedTrade[]>([]);
+  const aggRafId = useRef<number | null>(null);
+  const feedIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const processBatch = useCallback(() => {
-    if (tradeBuffer.current.length === 0) return;
-    const batch = [...tradeBuffer.current];
-    tradeBuffer.current = [];
-    addTrades(batch);
-  }, [addTrades]);
+  const flushAggregation = useCallback(() => {
+    aggRafId.current = null;
+    const batch = aggPending.current;
+    aggPending.current = [];
+    if (batch.length > 0) ingestTrades(batch);
+  }, [ingestTrades]);
 
-  const handleNewTrade = useCallback((trade: NormalizedTrade) => {
-    tradeBuffer.current.push(trade);
-    if (!batchTimer.current) {
-      batchTimer.current = setInterval(processBatch, 200);
-    }
-  }, [processBatch]);
+  const scheduleAggregationFlush = useCallback(() => {
+    if (aggRafId.current != null) return;
+    aggRafId.current = requestAnimationFrame(flushAggregation);
+  }, [flushAggregation]);
 
-  const handleStatusChange = useCallback((exchange: string, status: string) => {
-    setExchangeStatus(exchange, status);
-  }, [setExchangeStatus]);
+  const flushFeedUI = useCallback(() => {
+    const batch = [...feedPending.current];
+    feedPending.current = [];
+    if (batch.length > 0) prependFeedTrades(batch);
+  }, [prependFeedTrades]);
+
+  const handleNewTrade = useCallback(
+    (trade: NormalizedTrade) => {
+      aggPending.current.push(trade);
+      feedPending.current.push(trade);
+      scheduleAggregationFlush();
+    },
+    [scheduleAggregationFlush]
+  );
+
+  const handleStatusChange = useCallback(
+    (exchange: string, status: string) => {
+      setExchangeStatus(exchange, status);
+    },
+    [setExchangeStatus]
+  );
 
   useEffect(() => {
     if (!isLive) {
@@ -57,22 +78,33 @@ export function useVolumeFeed() {
 
     const symbols = MARKET_PAIRS.map(p => p.id);
 
-    globalVolumeManager = new VolumeFeedManager(
-      symbols,
-      handleNewTrade,
-      handleStatusChange
-    );
+    globalVolumeManager = new VolumeFeedManager(symbols, handleNewTrade, handleStatusChange);
+
+    feedIntervalRef.current = setInterval(flushFeedUI, FEED_UI_FLUSH_MS);
 
     setIsLoading(true);
     globalVolumeManager.start();
 
-    // Small delay to show connecting state
     setTimeout(() => setIsLoading(false), 1500);
 
     return () => {
-      if (batchTimer.current) clearInterval(batchTimer.current);
+      if (aggRafId.current != null) {
+        cancelAnimationFrame(aggRafId.current);
+        aggRafId.current = null;
+      }
+      const aggBatch = [...aggPending.current];
+      aggPending.current = [];
+      if (aggBatch.length > 0) useVolumeStore.getState().ingestTrades(aggBatch);
+
+      if (feedIntervalRef.current != null) {
+        clearInterval(feedIntervalRef.current);
+        feedIntervalRef.current = null;
+      }
+      const feedBatch = [...feedPending.current];
+      feedPending.current = [];
+      if (feedBatch.length > 0) useVolumeStore.getState().prependFeedTrades(feedBatch);
     };
-  }, [isLive, handleNewTrade, handleStatusChange, setIsLoading]);
+  }, [isLive, handleNewTrade, handleStatusChange, setIsLoading, flushFeedUI]);
 
   return {
     trades,
